@@ -1,50 +1,51 @@
-# ADS-Final-Project-Fall2025
+# Replicated Concurrency Control & Recovery (repcrec)
 
-Replicated Concurrency Control & Recovery System implementing Serializable Snapshot Isolation (SSI).
+Lightweight Maven-based Java implementation of Serializable Snapshot Isolation (SSI) with the Available Copies replication algorithm.
 
-## Build Instructions
+Key entry points and references:
+- Main application starter: [`com.ads.Main`](repcrec/src/main/java/com/ads/Main.java)
+- Simulator/driver: [`com.ads.Simulator`](repcrec/src/main/java/com/ads/Simulator.java)
+- Transaction manager interface: [`com.ads.interfaces.ITransactionManager`](repcrec/src/main/java/com/ads/interfaces/ITransactionManager.java)
+- Data manager interface: [`com.ads.interfaces.IDataManager`](repcrec/src/main/java/com/ads/interfaces/IDataManager.java)
+- Variable model: [`com.ads.Variable`](repcrec/src/main/java/com/ads/Variable.java)
+- Maven project file: [repcrec/pom.xml](repcrec/pom.xml)
 
-### Quick Start
+Requirements
+- JDK 21 (configured in [repcrec/pom.xml](repcrec/pom.xml))
+- Maven 3+
 
-```bash
-# Compile all source files
-make compile
+Build
+- Compile:
+  mvn -f repcrec/pom.xml compile
 
-# Clean build artifacts
-make clean
+- Package:
+  mvn -f repcrec/pom.xml package
 
-# Compile and run tests
-make test
+Test
+- Run unit tests:
+  mvn -f repcrec/pom.xml test
 
-# Run the simulator with an input file
-make run INPUT=input.txt
-```
+Run
+- Run the simulator or main class from the built classes:
+  java -cp repcrec/target/classes com.ads.Simulator
+  or
+  java -cp repcrec/target/classes com.ads.Main
 
-### Directory Structure
+Project layout (important files)
+- [repcrec/pom.xml](repcrec/pom.xml)
+- Source: repcrec/src/main/java/com/ads/
+  - [`com.ads.Main`](repcrec/src/main/java/com/ads/Main.java)
+  - [`com.ads.Simulator`](repcrec/src/main/java/com/ads/Simulator.java)
+  - [`com.ads.Variable`](repcrec/src/main/java/com/ads/Variable.java)
+  - Interfaces: repcrec/src/main/java/com/ads/interfaces/
+    - [`com.ads.interfaces.ITransactionManager`](repcrec/src/main/java/com/ads/interfaces/ITransactionManager.java)
+    - [`com.ads.interfaces.IDataManager`](repcrec/src/main/java/com/ads/interfaces/IDataManager.java)
 
-```
-.
-├── src/          # Java source files
-├── test/         # Test files
-├── bin/          # Compiled .class files (auto-generated, gitignored)
-├── Makefile      # Build configuration
-└── CLAUDE.md     # Project documentation
-```
+Development notes
+- Implement the concrete TransactionManager and DataManager classes to wire up the simulator.
+- The simulator expects a driver that reads textual commands (begin, R/W, end, fail, recover, dump) and uses the transaction/data manager APIs listed above.
 
-### Development Workflow
+License
+- MIT — see LICENSE
 
-1. Write your Java code in `src/`
-2. Run `make compile` to build
-3. Add tests in `test/`
-4. Run `make test` to compile and verify tests
-5. Run `make clean` to remove compiled files
-
-### Manual Compilation (if needed)
-
-```bash
-# Compile manually
-javac -d bin -sourcepath src src/*.java
-
-# Run manually
-java -cp bin Simulator input.txt
-```
+For details on design and responsibilities, see [CLAUDE.md](CLAUDE.md).
