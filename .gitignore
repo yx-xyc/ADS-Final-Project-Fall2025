@@ -25,3 +25,5 @@ replay_pid*
 
 # Build directory
 bin/
+.vscode/
+repcrec/target/
