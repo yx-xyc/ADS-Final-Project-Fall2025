@@ -3,7 +3,7 @@ package com.ads;
 /**
  * Class representing a command with its type and arguments.
  * @author Tejas Choudhary
- * @version 1.0 (Created: 2025-11-25, Last Modified: 2025-11-26)
+ * @version 1.0 (Created: 2025-11-25, Last Modified: 2025-11-27)
  */
 
 public class Command {
@@ -21,5 +21,10 @@ public class Command {
 
     public String[] getArgs() {
         return args;
+    }
+
+    @Override
+    public String toString() {
+        return type + "(" + String.join(",", args) + ")";
     }
 }
