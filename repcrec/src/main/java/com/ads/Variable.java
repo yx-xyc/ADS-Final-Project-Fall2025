@@ -21,18 +21,36 @@ public class Variable {
     }
 
     /**
-     * Purpose: Find the correct version of the data for a transaction based on its start time.
-     * Iterate backwards through the commit log and return the first version it finds with a commit time less than the transaction's start time.
+     * Purpose: Find the latest version of the data for a transaction based on its start time.
+     * @param transactionStartTime
+     * @return VersionedValue corresponding to the transaction's start time.
      */
     public VersionedValue getVersionFor(int transactionStartTime) {
-        return null; // TODO: Implement me
+        for (int i = commitLog.size() - 1; i >= 0; i--) {
+            final VersionedValue version = commitLog.get(i);
+            if (version.getCommitTime() <= transactionStartTime) {
+                return version;
+            }
+        }
+        return null; 
     }
 
-    // Purpose: Get the absolute latest committed value for dump().
+    /**
+     * Returns the latest committed version of the variable.
+     * @return Latest VersionedValue or null if no versions exist.
+     */
     public VersionedValue getLatestVersion() {
-        return null; // TODO: Implement me
+        if (commitLog.isEmpty()) {
+            return null; 
+        }
+        return commitLog.get(commitLog.size() - 1);
     }
 
-    // Purpose: Adds a new committed version to this variable's history
-    public void addCommittedVersion(VersionedValue version) {} 
+    /**
+     * Adds a new committed version to the variable's commit log.
+     * @param version
+     */
+    public void addCommittedVersion(VersionedValue version) {
+        commitLog.add(version);
+    } 
 }
