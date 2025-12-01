@@ -7,7 +7,7 @@ import java.util.*;
  * This is essential for ensuring serializability in Snapshot Isolation.
  * Based on the FLOOS theorem: non-serializable executions under SI must contain
  * two consecutive RW (read-write anti-dependency) edges in a cycle.
- * @author Claude Code
+ * @author Vincent Xu
  * @version 1.0 (Created: 2025-11-30)
  */
 public class SerializationGraph {

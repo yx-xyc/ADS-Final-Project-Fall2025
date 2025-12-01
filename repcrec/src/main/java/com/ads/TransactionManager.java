@@ -58,10 +58,22 @@ public class TransactionManager implements ITransactionManager {
 
     /**
      * No-argument constructor for compatibility with Simulator.
-     * Creates TransactionManager without DataManagers (will need to be set separately).
+     * Creates TransactionManager with StubDataManager instances for testing.
      */
     public TransactionManager() {
-        this(new HashMap<>());
+        this(createStubDataManagers());
+    }
+
+    /**
+     * Factory method to create stub DataManagers for all 10 sites.
+     * @return Map of site ID to StubDataManager instance
+     */
+    private static Map<Integer, IDataManager> createStubDataManagers() {
+        Map<Integer, IDataManager> managers = new HashMap<>();
+        for (int i = 1; i <= NUM_SITES; i++) {
+            managers.put(i, new StubDataManager(i));
+        }
+        return managers;
     }
 
     // ==================== Helper Methods ====================
@@ -413,9 +425,12 @@ public class TransactionManager implements ITransactionManager {
                 if (other.getStatus() != TxRecord.Status.COMMITTED) continue;
                 if (!other.getWriteSet().containsKey(varId)) continue;
 
-                // Concurrent if: start(other) < start(committingTx) < commit(other)
-                boolean concurrent = other.getStartTime() < committingTx.getStartTime() &&
-                                   committingTx.getStartTime() < other.getCommitTime();
+                // Concurrent if execution intervals overlap:
+                // committingTx: [start(committingTx), logicalClock (about to commit)]
+                // other: [start(other), commit(other)]
+                // Overlap if: start(committingTx) < commit(other) AND start(other) < logicalClock
+                boolean concurrent = (committingTx.getStartTime() < other.getCommitTime()) &&
+                                   (other.getStartTime() < logicalClock);
 
                 if (concurrent) {
                     return false; // Conflict - other committed first
