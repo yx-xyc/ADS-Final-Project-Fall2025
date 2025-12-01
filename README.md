@@ -10,26 +10,39 @@ Key entry points and references:
 - Variable model: [`com.ads.Variable`](repcrec/src/main/java/com/ads/Variable.java)
 - Maven project file: [repcrec/pom.xml](repcrec/pom.xml)
 
-Requirements
-- JDK 21 (configured in [repcrec/pom.xml](repcrec/pom.xml))
-- Maven 3+
+## Build & Run
 
-Build
-- Compile:
-  mvn -f repcrec/pom.xml compile
+Requirements: JDK 17+, Maven 3+
 
-- Package:
-  mvn -f repcrec/pom.xml package
+```bash
+# Compile
+cd repcrec
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+mvn compile
 
-Test
-- Run unit tests:
-  mvn -f repcrec/pom.xml test
+# Run simulator with input file
+java -cp target/classes com.ads.Simulator -f in/1.in
 
-Run
-- Run the simulator or main class from the built classes:
-  java -cp repcrec/target/classes com.ads.Simulator
-  or
-  java -cp repcrec/target/classes com.ads.Main
+# Run interactive console
+java -cp target/classes com.ads.Main
+```
+
+## Testing
+
+```bash
+cd repcrec
+
+# Run all 27 test cases
+./run-tests.sh
+
+# Show detailed differences for failures
+./run-tests.sh compare -v
+
+# Regenerate expected output after fixes
+./run-tests.sh generate
+```
+
+Test inputs: `repcrec/in/*.in` | Expected outputs: `repcrec/out/*.out`
 
 Project layout (important files)
 - [repcrec/pom.xml](repcrec/pom.xml)
@@ -47,5 +60,3 @@ Development notes
 
 License
 - MIT — see LICENSE
-
-For details on design and responsibilities, see [CLAUDE.md](CLAUDE.md).
