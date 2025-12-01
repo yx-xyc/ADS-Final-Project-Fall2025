@@ -1,0 +1,587 @@
+package com.ads;
+
+import com.ads.interfaces.ITransactionManager;
+import com.ads.interfaces.IDataManager;
+import java.util.*;
+
+/**
+ * Concrete implementation of the Transaction Manager.
+ * Manages transactions, sites, and variables using Available Copies with Validation (Snapshot Isolation).
+ */
+public class TransactionManager implements ITransactionManager {
+    private static final int NUM_SITES = 10;
+    private static final int NUM_VARS = 20;
+
+    // Global logical clock
+    private int logicalClock;
+
+    // DataManager instances (one per site)
+    private final Map<Integer, IDataManager> dataManagers;
+
+    // Site Directory for UP/DOWN status
+    private final SiteDirectory siteDirectory;
+
+    // Active Transactions
+    private final Map<String, TxRecord> transactions;
+
+    // Stale Variables (Replicated variables at a site that are not yet readable after recovery)
+    // Site ID -> Set of Variable IDs
+    private final Map<Integer, Set<String>> staleVariables;
+
+    // Blocked Transactions handling
+    private final Set<String> blockedTransactions;
+    private final Queue<PendingOperation> waitQueue;
+
+    // Serialization Graph for cycle detection
+    private final SerializationGraph serializationGraph;
+
+    /**
+     * Constructor for TransactionManager.
+     * Accepts DataManager instances created externally (by teammate).
+     * @param dataManagers Map of site ID to DataManager instance
+     */
+    public TransactionManager(Map<Integer, IDataManager> dataManagers) {
+        this.logicalClock = 0;
+        this.dataManagers = dataManagers;
+        this.siteDirectory = new SiteDirectory();
+        this.transactions = new HashMap<>();
+        this.staleVariables = new HashMap<>();
+        this.blockedTransactions = new HashSet<>();
+        this.waitQueue = new LinkedList<>();
+        this.serializationGraph = new SerializationGraph();
+
+        // Initialize stale variables sets for all sites
+        for (int i = 1; i <= NUM_SITES; i++) {
+            staleVariables.put(i, new HashSet<>());
+        }
+    }
+
+    /**
+     * No-argument constructor for compatibility with Simulator.
+     * Creates TransactionManager without DataManagers (will need to be set separately).
+     */
+    public TransactionManager() {
+        this(new HashMap<>());
+    }
+
+    // ==================== Helper Methods ====================
+
+    /**
+     * Get the set of site IDs that should hold a given variable.
+     * - Replicated variables (even IDs): all sites 1-10
+     * - Non-replicated variables (odd IDs): site = 1 + (id mod 10)
+     * @param varId Variable ID (e.g., "x5")
+     * @return Set of site IDs
+     */
+    private Set<Integer> getSitesForVariable(String varId) {
+        int id = Integer.parseInt(varId.substring(1)); // "x5" -> 5
+        Set<Integer> sites = new HashSet<>();
+
+        if (id % 2 == 0) {
+            // Replicated: all sites 1-10
+            for (int i = 1; i <= NUM_SITES; i++) {
+                sites.add(i);
+            }
+        } else {
+            // Non-replicated: site = 1 + (id mod 10)
+            sites.add(1 + (id % 10));
+        }
+        return sites;
+    }
+
+    /**
+     * Check if a variable is replicated (even ID) or not.
+     * @param varId Variable ID (e.g., "x5")
+     * @return true if replicated, false otherwise
+     */
+    private boolean isReplicated(String varId) {
+        int id = Integer.parseInt(varId.substring(1));
+        return id % 2 == 0;
+    }
+
+    // ==================== ITransactionManager Interface Methods ====================
+
+    /**
+     * Begin a new transaction.
+     * Creates a TxRecord with the current logical clock as the transaction's start time.
+     * This start time determines the transaction's snapshot view.
+     * @param txnId Transaction ID
+     */
+    @Override
+    public void begin(String txnId) {
+        logicalClock++;
+        TxRecord txRecord = new TxRecord(txnId, logicalClock);
+        transactions.put(txnId, txRecord);
+        System.out.println("Transaction " + txnId + " begins at time " + logicalClock);
+    }
+
+    /**
+     * Write operation - buffers the write in the transaction's writeSet.
+     * Writes are not persisted until commit (Snapshot Isolation).
+     * @param txnId Transaction ID
+     * @param varId Variable ID
+     * @param value Value to write
+     */
+    @Override
+    public void write(String txnId, String varId, int value) {
+        logicalClock++;
+
+        TxRecord tx = transactions.get(txnId);
+        if (tx == null || tx.getStatus() != TxRecord.Status.ACTIVE) {
+            System.out.println("Transaction " + txnId + " is not active");
+            return;
+        }
+
+        tx.addWrite(varId, value);
+        System.out.println("Transaction " + txnId + " writes " + value + " to " + varId);
+    }
+
+    /**
+     * Read operation - implements snapshot isolation with own-write check.
+     * Transactions always read their own writes first, otherwise read from snapshot.
+     * @param txnId Transaction ID
+     * @param varId Variable ID
+     */
+    @Override
+    public void read(String txnId, String varId) {
+        logicalClock++;
+
+        TxRecord tx = transactions.get(txnId);
+        if (tx == null || tx.getStatus() != TxRecord.Status.ACTIVE) {
+            System.out.println("Transaction " + txnId + " is not active");
+            return;
+        }
+
+        // Check own writes first
+        if (tx.getWriteSet().containsKey(varId)) {
+            int value = tx.getWriteSet().get(varId);
+            System.out.println(txnId + " reads " + varId + ": " + value + " (own write)");
+            return;
+        }
+
+        // Try reading from available sites
+        tryReadFromSites(tx, varId);
+    }
+
+    /**
+     * Try to read from available sites using Available Copies algorithm.
+     * A site is valid for reading if:
+     * 1. Site is currently UP
+     * 2. If replicated, variable is not stale
+     * 3. Site was continuously UP since transaction start
+     *
+     * If no valid site found, block the transaction.
+     * @param tx Transaction record
+     * @param varId Variable ID
+     */
+    private void tryReadFromSites(TxRecord tx, String varId) {
+        Set<Integer> candidateSites = getSitesForVariable(varId);
+        boolean isRepl = isReplicated(varId);
+
+        for (int siteId : candidateSites) {
+            // Check 1: Site must be UP
+            if (!siteDirectory.isUp(siteId)) continue;
+
+            // Check 2: If replicated, must not be stale
+            if (isRepl && staleVariables.get(siteId).contains(varId)) continue;
+
+            // Check 3: Site must have been continuously UP since tx start
+            if (!siteDirectory.wasContinuouslyUp(siteId, tx.getStartTime())) continue;
+
+            // Attempt read from DataManager
+            try {
+                IDataManager dm = dataManagers.get(siteId);
+                if (dm == null) continue; // DataManager not initialized yet
+
+                int value = dm.read(tx.getTxnId(), varId, tx.getStartTime());
+
+                // Success!
+                tx.addRead(varId, logicalClock); // Record version time
+                tx.addSiteAccess(siteId);
+                System.out.println(tx.getTxnId() + " reads " + varId + ": " + value);
+                return;
+
+            } catch (Exception e) {
+                // Site failed or stale, try next
+                continue;
+            }
+        }
+
+        // No valid site found - block transaction
+        System.out.println(tx.getTxnId() + " waits for " + varId);
+        blockedTransactions.add(tx.getTxnId());
+        waitQueue.add(new PendingOperation(tx.getTxnId(), "READ", varId, logicalClock));
+    }
+
+    /**
+     * Abort a transaction and cleanup its state.
+     * Notifies DataManagers to discard any buffered writes.
+     * @param txnId Transaction ID
+     * @param reason Reason for abort
+     */
+    private void abortTransaction(String txnId, String reason) {
+        TxRecord tx = transactions.get(txnId);
+        if (tx == null) return;
+
+        tx.setStatus(TxRecord.Status.ABORTED);
+        blockedTransactions.remove(txnId);
+        waitQueue.removeIf(op -> op.txnId.equals(txnId));
+
+        // Notify DataManagers to abort
+        for (int siteId : tx.getSitesAccessed()) {
+            try {
+                IDataManager dm = dataManagers.get(siteId);
+                if (dm != null) {
+                    dm.abort(txnId);
+                }
+            } catch (Exception e) {
+                // Ignore errors during abort
+            }
+        }
+
+        System.out.println("Transaction " + txnId + " aborts: " + reason);
+    }
+
+    /**
+     * Mark a site as failed.
+     * Aborts all active transactions that have accessed this site (Available Copies requirement).
+     * @param siteId Site ID
+     */
+    @Override
+    public void fail(int siteId) {
+        logicalClock++;
+
+        // Mark site down
+        siteDirectory.fail(siteId, logicalClock);
+
+        // Notify DataManager
+        try {
+            IDataManager dm = dataManagers.get(siteId);
+            if (dm != null) {
+                dm.fail();
+            }
+        } catch (Exception e) {
+            // Ignore
+        }
+
+        // Abort transactions that accessed this site
+        List<String> toAbort = new ArrayList<>();
+        for (TxRecord tx : transactions.values()) {
+            if (tx.getStatus() == TxRecord.Status.ACTIVE &&
+                tx.getSitesAccessed().contains(siteId)) {
+                toAbort.add(tx.getTxnId());
+            }
+        }
+
+        for (String txnId : toAbort) {
+            abortTransaction(txnId, "Site " + siteId + " failed");
+        }
+
+        System.out.println("Site " + siteId + " fails");
+    }
+
+    /**
+     * Recover a failed site.
+     * Marks all replicated variables as stale until new writes commit.
+     * Non-replicated variables remain immediately readable (authoritative copy).
+     * @param siteId Site ID
+     */
+    @Override
+    public void recover(int siteId) {
+        logicalClock++;
+
+        // Mark site UP
+        siteDirectory.recover(siteId, logicalClock);
+
+        // Notify DataManager
+        try {
+            IDataManager dm = dataManagers.get(siteId);
+            if (dm != null) {
+                dm.recover();
+            }
+        } catch (Exception e) {
+            // Ignore
+        }
+
+        // Mark all replicated variables as stale
+        Set<String> staleVars = new HashSet<>();
+        for (int varId = 2; varId <= NUM_VARS; varId += 2) {
+            staleVars.add("x" + varId);
+        }
+        staleVariables.put(siteId, staleVars);
+
+        // Retry blocked transactions
+        processWaitQueue();
+
+        System.out.println("Site " + siteId + " recovers");
+    }
+
+    /**
+     * Process the wait queue to retry blocked read operations.
+     * Called after site recovery or transaction commit.
+     */
+    private void processWaitQueue() {
+        Iterator<PendingOperation> iter = waitQueue.iterator();
+
+        while (iter.hasNext()) {
+            PendingOperation op = iter.next();
+            TxRecord tx = transactions.get(op.txnId);
+
+            // Skip if transaction no longer active
+            if (tx == null || tx.getStatus() != TxRecord.Status.ACTIVE) {
+                iter.remove();
+                blockedTransactions.remove(op.txnId);
+                continue;
+            }
+
+            // Retry read
+            if (op.operation.equals("READ")) {
+                boolean wasBlocked = blockedTransactions.contains(op.txnId);
+                blockedTransactions.remove(op.txnId);
+
+                tryReadFromSites(tx, op.varId);
+
+                // If no longer blocked, remove from queue
+                if (!blockedTransactions.contains(op.txnId)) {
+                    iter.remove();
+                }
+            }
+        }
+    }
+
+    /**
+     * Build serialization graph edges when a transaction is about to commit.
+     * Creates WW, WR, and RW edges according to SSI rules:
+     * - WW: both write x, commit(T1) < start(T2)
+     * - WR: T1 writes x, T2 reads x, commit(T1) < start(T2)
+     * - RW: T1 reads x, T2 writes x, start(T1) < commit(T2)
+     * @param committingTx Transaction about to commit
+     */
+    private void buildSerializationGraphEdges(TxRecord committingTx) {
+        String txnId = committingTx.getTxnId();
+        int commitTime = logicalClock; // Current time is commit time
+
+        for (TxRecord other : transactions.values()) {
+            if (other.getTxnId().equals(txnId)) continue;
+
+            // Only consider committed transactions for WW/WR edges
+            if (other.getStatus() == TxRecord.Status.COMMITTED) {
+                // WW: both write x, commit(other) < start(committingTx)
+                for (String varId : committingTx.getWriteSet().keySet()) {
+                    if (other.getWriteSet().containsKey(varId) &&
+                        other.getCommitTime() < committingTx.getStartTime()) {
+                        serializationGraph.addEdge(other.getTxnId(), txnId,
+                                                  SerializationGraph.EdgeType.WW);
+                    }
+                }
+
+                // WR: other writes x, committingTx reads x, commit(other) < start(committingTx)
+                for (String varId : committingTx.getReadSet().keySet()) {
+                    if (other.getWriteSet().containsKey(varId) &&
+                        other.getCommitTime() < committingTx.getStartTime()) {
+                        serializationGraph.addEdge(other.getTxnId(), txnId,
+                                                  SerializationGraph.EdgeType.WR);
+                    }
+                }
+            }
+
+            // RW: other reads x, committingTx writes x, start(other) < commit(committingTx)
+            // Check both committed and active transactions
+            if (other.getStatus() == TxRecord.Status.COMMITTED ||
+                other.getStatus() == TxRecord.Status.ACTIVE) {
+                for (String varId : committingTx.getWriteSet().keySet()) {
+                    if (other.getReadSet().containsKey(varId) &&
+                        other.getStartTime() < commitTime) {
+                        serializationGraph.addEdge(other.getTxnId(), txnId,
+                                                  SerializationGraph.EdgeType.RW);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Check first-committer-wins rule.
+     * Returns false if a concurrent transaction already committed a conflicting write.
+     * Two transactions are concurrent if: start(T1) < start(T2) < commit(T1)
+     * @param committingTx Transaction about to commit
+     * @return true if validation passes, false if conflict detected
+     */
+    private boolean checkFirstCommitterWins(TxRecord committingTx) {
+        for (String varId : committingTx.getWriteSet().keySet()) {
+            for (TxRecord other : transactions.values()) {
+                if (other.getStatus() != TxRecord.Status.COMMITTED) continue;
+                if (!other.getWriteSet().containsKey(varId)) continue;
+
+                // Concurrent if: start(other) < start(committingTx) < commit(other)
+                boolean concurrent = other.getStartTime() < committingTx.getStartTime() &&
+                                   committingTx.getStartTime() < other.getCommitTime();
+
+                if (concurrent) {
+                    return false; // Conflict - other committed first
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Commit a transaction - applies writes to DataManagers.
+     * Clears stale flags for written replicated variables.
+     * @param tx Transaction to commit
+     */
+    private void commitTransaction(TxRecord tx) {
+        tx.setCommitTime(logicalClock);
+        tx.setStatus(TxRecord.Status.COMMITTED);
+
+        // Prepare writes at all relevant DataManagers
+        for (Map.Entry<String, Integer> write : tx.getWriteSet().entrySet()) {
+            String varId = write.getKey();
+            int value = write.getValue();
+            Set<Integer> targetSites = getSitesForVariable(varId);
+
+            for (int siteId : targetSites) {
+                if (!siteDirectory.isUp(siteId)) continue;
+
+                try {
+                    IDataManager dm = dataManagers.get(siteId);
+                    if (dm != null) {
+                        dm.prepareWrite(tx.getTxnId(), varId, value);
+                    }
+                } catch (Exception e) {
+                    // Log but continue
+                }
+            }
+        }
+
+        // Commit at all accessed sites
+        for (int siteId : tx.getSitesAccessed()) {
+            try {
+                IDataManager dm = dataManagers.get(siteId);
+                if (dm != null) {
+                    dm.commit(tx.getTxnId(), logicalClock);
+                }
+            } catch (Exception e) {
+                // Log but continue
+            }
+        }
+
+        // Clear stale flags for written replicated variables
+        for (String varId : tx.getWriteSet().keySet()) {
+            if (isReplicated(varId)) {
+                for (int siteId = 1; siteId <= NUM_SITES; siteId++) {
+                    staleVariables.get(siteId).remove(varId);
+                }
+            }
+        }
+
+        // Retry blocked transactions
+        processWaitQueue();
+
+        System.out.println("Transaction " + tx.getTxnId() + " commits");
+    }
+
+    /**
+     * End (commit) a transaction.
+     * Performs full validation:
+     * 1. Read-only optimization (skip validation)
+     * 2. First-committer-wins check
+     * 3. Serialization graph cycle detection
+     * @param txnId Transaction ID
+     */
+    @Override
+    public void end(String txnId) {
+        logicalClock++;
+
+        TxRecord tx = transactions.get(txnId);
+        if (tx == null || tx.getStatus() != TxRecord.Status.ACTIVE) {
+            System.out.println("Transaction " + txnId + " cannot commit");
+            return;
+        }
+
+        // Read-only optimization
+        if (tx.getWriteSet().isEmpty()) {
+            tx.setStatus(TxRecord.Status.COMMITTED);
+            tx.setCommitTime(logicalClock);
+            System.out.println("Transaction " + txnId + " commits (read-only)");
+            return;
+        }
+
+        // Validation: First-committer-wins
+        if (!checkFirstCommitterWins(tx)) {
+            abortTransaction(txnId, "Write-write conflict (first-committer-wins)");
+            return;
+        }
+
+        // Validation: Build graph edges and check cycles
+        buildSerializationGraphEdges(tx);
+
+        if (serializationGraph.hasCycleWithTwoConsecutiveRW()) {
+            abortTransaction(txnId, "Cycle with consecutive RW edges");
+            serializationGraph.removeTransaction(txnId);
+            return;
+        }
+
+        // Commit phase
+        commitTransaction(tx);
+
+        // Cleanup old transactions from graph
+        int minActiveStart = Integer.MAX_VALUE;
+        for (TxRecord active : transactions.values()) {
+            if (active.getStatus() == TxRecord.Status.ACTIVE) {
+                minActiveStart = Math.min(minActiveStart, active.getStartTime());
+            }
+        }
+
+        List<String> toRemove = new ArrayList<>();
+        for (TxRecord committed : transactions.values()) {
+            if (committed.getStatus() == TxRecord.Status.COMMITTED &&
+                committed.getCommitTime() < minActiveStart) {
+                toRemove.add(committed.getTxnId());
+            }
+        }
+
+        for (String oldTxn : toRemove) {
+            serializationGraph.removeTransaction(oldTxn);
+            transactions.remove(oldTxn);
+        }
+    }
+
+    /**
+     * Dump the current state of all variables across all sites.
+     * Shows committed values at each site, marking stale replicated variables.
+     */
+    @Override
+    public void dump() {
+        System.out.println("=== Database Dump ===");
+
+        for (int varId = 1; varId <= NUM_VARS; varId++) {
+            String varName = "x" + varId;
+            System.out.print(varName + ":");
+
+            Set<Integer> validSites = getSitesForVariable(varName);
+
+            for (int siteId : validSites) {
+                if (!siteDirectory.isUp(siteId)) continue;
+
+                try {
+                    // Query latest committed value from DataManager
+                    IDataManager dm = dataManagers.get(siteId);
+                    if (dm == null) continue;
+
+                    int value = dm.read("DUMP", varName, Integer.MAX_VALUE);
+
+                    boolean stale = isReplicated(varName) &&
+                                  staleVariables.get(siteId).contains(varName);
+                    String marker = stale ? "(stale)" : "";
+                    System.out.print(" site" + siteId + ":" + value + marker);
+                } catch (Exception e) {
+                    // Variable not available or site error
+                }
+            }
+            System.out.println();
+        }
+        System.out.println("====================");
+    }
+
+}
