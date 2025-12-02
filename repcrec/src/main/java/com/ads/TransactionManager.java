@@ -144,7 +144,20 @@ public class TransactionManager implements ITransactionManager {
             return;
         }
 
+        // Buffer the write
         tx.addWrite(varId, value);
+
+        // Record which sites were UP at write time (critical for Available Copies validation)
+        // Must track the write time to properly implement: "if T writes to site s and THEN s fails"
+        Set<Integer> targetSites = getSitesForVariable(varId);
+        Set<Integer> availableSites = new HashSet<>();
+        for (int siteId : targetSites) {
+            if (siteDirectory.isUp(siteId)) {
+                availableSites.add(siteId);
+            }
+        }
+        tx.addWriteTarget(varId, logicalClock, availableSites);
+
         System.out.println("Transaction " + txnId + " writes " + value + " to " + varId);
     }
 
@@ -522,6 +535,24 @@ public class TransactionManager implements ITransactionManager {
             tx.setCommitTime(logicalClock);
             System.out.println("Transaction " + txnId + " commits (read-only)");
             return;
+        }
+
+        // VALIDATION: Available Copies - check if write target sites failed AFTER the write
+        // Spec: "if T writes to a site s and THEN s fails before T commits, then T should abort"
+        // Key: Check from WRITE time, not transaction start time
+        for (Map.Entry<String, TxRecord.WriteMetadata> entry : tx.getWriteTargets().entrySet()) {
+            String varId = entry.getKey();
+            TxRecord.WriteMetadata metadata = entry.getValue();
+            int writeTime = metadata.getWriteTime();
+            Set<Integer> targetedSites = metadata.getTargetSites();
+
+            for (int siteId : targetedSites) {
+                // Check if this site was continuously up from WRITE time until now
+                if (!siteDirectory.wasContinuouslyUp(siteId, writeTime)) {
+                    abortTransaction(txnId, "Site " + siteId + " failed (Available Copies)");
+                    return;
+                }
+            }
         }
 
         // Validation: First-committer-wins
