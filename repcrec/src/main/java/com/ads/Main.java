@@ -67,10 +67,10 @@ public class Main {
                     executeCommand(command);
                 }
             } catch (IllegalArgumentException e) {
-                System.out.println("❌ Invalid command: " + e.getMessage());
+                System.out.println("Invalid command: " + e.getMessage());
                 System.out.println("Type 'help' for command syntax.");
             } catch (Exception e) {
-                System.out.println("❌ Error: " + e.getMessage());
+                System.out.println("Error: " + e.getMessage());
             }
         }
     }
@@ -88,7 +88,7 @@ public class Main {
                 case DUMP -> tm.dump();
             }
         } catch (Exception e) {
-            System.out.println("❌ Execution error: " + e.getMessage());
+            System.out.println("Execution error: " + e.getMessage());
         }
     }
 

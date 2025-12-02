@@ -449,6 +449,7 @@ public class TransactionManager implements ITransactionManager {
         tx.setCommitTime(logicalClock);
         tx.setStatus(TxRecord.Status.COMMITTED);
 
+        Set<Integer> sitesWithPreparedWrites = new HashSet<>();
         // Prepare writes at all relevant DataManagers
         for (Map.Entry<String, Integer> write : tx.getWriteSet().entrySet()) {
             String varId = write.getKey();
@@ -462,6 +463,7 @@ public class TransactionManager implements ITransactionManager {
                     IDataManager dm = dataManagers.get(siteId);
                     if (dm != null) {
                         dm.prepareWrite(tx.getTxnId(), varId, value);
+                        sitesWithPreparedWrites.add(siteId);
                     }
                 } catch (Exception e) {
                     // Log but continue
@@ -470,7 +472,7 @@ public class TransactionManager implements ITransactionManager {
         }
 
         // Commit at all accessed sites
-        for (int siteId : tx.getSitesAccessed()) {
+        for (int siteId : sitesWithPreparedWrites) {
             try {
                 IDataManager dm = dataManagers.get(siteId);
                 if (dm != null) {
@@ -481,10 +483,10 @@ public class TransactionManager implements ITransactionManager {
             }
         }
 
-        // Clear stale flags for written replicated variables
+        // Clear stale flags only for UP sites that received the write
         for (String varId : tx.getWriteSet().keySet()) {
             if (isReplicated(varId)) {
-                for (int siteId = 1; siteId <= NUM_SITES; siteId++) {
+                for (int siteId : sitesWithPreparedWrites) {
                     staleVariables.get(siteId).remove(varId);
                 }
             }
@@ -569,33 +571,65 @@ public class TransactionManager implements ITransactionManager {
     @Override
     public void dump() {
         System.out.println("=== Database Dump ===");
+        System.out.println();
 
-        for (int varId = 1; varId <= NUM_VARS; varId++) {
+        // Print non-replicated variables (odd indices)
+        System.out.println("Non-Replicated Variables:");
+        for (int varId = 1; varId <= NUM_VARS; varId += 2) {
             String varName = "x" + varId;
-            System.out.print(varName + ":");
-
             Set<Integer> validSites = getSitesForVariable(varName);
 
             for (int siteId : validSites) {
                 if (!siteDirectory.isUp(siteId)) continue;
 
                 try {
-                    // Query latest committed value from DataManager
                     IDataManager dm = dataManagers.get(siteId);
                     if (dm == null) continue;
 
                     int value = dm.read("DUMP", varName, Integer.MAX_VALUE);
-
-                    boolean stale = isReplicated(varName) &&
-                                  staleVariables.get(siteId).contains(varName);
-                    String marker = stale ? "(stale)" : "";
-                    System.out.print(" site" + siteId + ":" + value + marker);
+                    System.out.printf("  %-4s site%-2d: %d%n", varName, siteId, value);
                 } catch (Exception e) {
                     // Variable not available or site error
                 }
             }
+        }
+
+        System.out.println();
+        System.out.println("Replicated Variables:");
+        System.out.println("  Var  | Site1 | Site2 | Site3 | Site4 | Site5 | Site6 | Site7 | Site8 | Site9 | Site10");
+        System.out.println("  -----|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------");
+
+        // Print replicated variables (even indices) in table format
+        for (int varId = 2; varId <= NUM_VARS; varId += 2) {
+            String varName = "x" + varId;
+            System.out.printf("  %-4s |", varName);
+
+            Set<Integer> validSites = getSitesForVariable(varName);
+
+            for (int siteId = 1; siteId <= NUM_SITES; siteId++) {
+                String cellContent = "  -  ";  // Default: site down or no data
+
+                if (validSites.contains(siteId) && siteDirectory.isUp(siteId)) {
+                    try {
+                        IDataManager dm = dataManagers.get(siteId);
+                        if (dm != null) {
+                            int value = dm.read("DUMP", varName, Integer.MAX_VALUE);
+                            boolean stale = staleVariables.get(siteId).contains(varName);
+                            cellContent = stale ? String.format("%3d*", value) : String.format(" %3d ", value);
+                        }
+                    } catch (Exception e) {
+                        // Variable not available or site error
+                    }
+                }
+
+                System.out.printf(" %5s |", cellContent);
+            }
             System.out.println();
         }
+
+        System.out.println();
+        System.out.println("  Note: * indicates stale (unreadable until new write committed)");
+        System.out.println("        - indicates site down or no data");
         System.out.println("====================");
     }
 
