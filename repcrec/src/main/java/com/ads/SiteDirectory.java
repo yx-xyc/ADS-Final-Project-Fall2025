@@ -9,6 +9,8 @@ import java.util.Map;
  * Manages the status (UP/DOWN) of all sites.
  * Tracks uptime history to validate read eligibility for Available Copies
  * algorithm.
+ * @author Vincent Xu
+ * @version 1.0 (Created: 2025-12-01)
  */
 public class SiteDirectory {
     private static final int NUM_SITES = 10;
@@ -98,11 +100,12 @@ public class SiteDirectory {
             return false;
         }
 
-        // Get the latest interval
-        UptimeInterval current = history.get(history.size() - 1);
-
-        // The current interval must be open (end == -1) AND
-        // it must have started before or at the requested time.
-        return current.end == -1 && current.start <= sinceTime;
+        for (int i = history.size() - 1; i >=0; i--) {
+            UptimeInterval interval = history.get(i);
+            if (interval.start <= sinceTime) {
+                return interval.end == -1;
+            }
+        }
+        return false;
     }
 }
