@@ -7,13 +7,37 @@ package com.ads;
  */
 
 public class PendingWrite {
-    public String transactionId;
-    public String variable;
-    public int value;
+    private final String transactionId;
+    private final String variable;
+    private final int value;
 
     public PendingWrite(String transactionId, String variable, int value) {
         this.transactionId = transactionId;
         this.variable = variable;
         this.value = value;
+    }
+
+    /**
+     * Get the transaction ID associated with this pending write.
+     * @return the transaction ID
+     */
+    public String getTransactionId() {
+        return transactionId;
+    }
+
+    /**
+     * Get the variable associated with this pending write.
+     * @return the variable
+     */
+    public String getVariable() {
+        return variable;
+    }
+
+    /**
+     * Get the value associated with this pending write.
+     * @return the value
+     */
+    public int getValue() {
+        return value;   
     }
 }
