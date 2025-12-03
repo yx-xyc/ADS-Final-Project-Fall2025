@@ -10,7 +10,7 @@ import java.util.List;
  */
 
 public class Variable {
-   private final String id;
+    private final String id;
     private final boolean isReplicated;
     private final List<VersionedValue> commitLog;
 
@@ -18,6 +18,14 @@ public class Variable {
         this.id = id;
         this.isReplicated = isReplicated;
         this.commitLog = new ArrayList<>();
+    }
+
+    public Variable(String id, boolean isReplicated, int initialValue) {
+        this.id = id;
+        this.isReplicated = isReplicated;
+        this.commitLog = new ArrayList<>();
+        // Initialize with an initial committed version at time 0
+        this.commitLog.add(new VersionedValue(initialValue, 0));
     }
 
     /**
@@ -53,4 +61,20 @@ public class Variable {
     public void addCommittedVersion(VersionedValue version) {
         commitLog.add(version);
     } 
+
+    /**
+     * Checks if the variable is replicated.
+     * @return true if replicated, false otherwise.
+     */
+    public boolean isReplicated() {
+        return isReplicated;
+    }
+
+    /**
+     * Gets the variable's identifier.
+     * @return Variable ID.
+     */
+    public String getId() {
+        return id;
+    }
 }
