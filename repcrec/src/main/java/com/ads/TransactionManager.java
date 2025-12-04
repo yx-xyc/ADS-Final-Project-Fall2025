@@ -156,6 +156,15 @@ public class TransactionManager implements ITransactionManager {
                 availableSites.add(siteId);
             }
         }
+
+        // Block if no sites are available for the write
+        if (availableSites.isEmpty()) {
+            System.out.println(txnId + " waits for " + varId + " (no sites available for write)");
+            blockedTransactions.add(txnId);
+            waitQueue.add(new PendingOperation(txnId, "WRITE", varId, logicalClock));
+            return;
+        }
+
         tx.addWriteTarget(varId, logicalClock, availableSites);
 
         System.out.println("Transaction " + txnId + " writes " + value + " to " + varId);
@@ -371,6 +380,30 @@ public class TransactionManager implements ITransactionManager {
                     iter.remove();
                 }
             }
+            // Retry write
+            else if (op.operation.equals("WRITE")) {
+                blockedTransactions.remove(op.txnId);
+
+                // Re-check if sites are now available
+                Set<Integer> targetSites = getSitesForVariable(op.varId);
+                Set<Integer> availableSites = new HashSet<>();
+                for (int siteId : targetSites) {
+                    if (siteDirectory.isUp(siteId)) {
+                        availableSites.add(siteId);
+                    }
+                }
+
+                // If sites are now available, complete the write
+                if (!availableSites.isEmpty()) {
+                    tx.addWriteTarget(op.varId, logicalClock, availableSites);
+                    Integer value = tx.getWriteSet().get(op.varId);
+                    System.out.println("Transaction " + tx.getTxnId() + " writes " + value + " to " + op.varId);
+                    iter.remove();
+                } else {
+                    // Still no sites available, keep waiting
+                    blockedTransactions.add(op.txnId);
+                }
+            }
         }
     }
 
@@ -477,11 +510,20 @@ public class TransactionManager implements ITransactionManager {
                     if (dm != null) {
                         dm.prepareWrite(tx.getTxnId(), varId, value);
                         sitesWithPreparedWrites.add(siteId);
+                        tx.addSiteAccess(siteId);
                     }
                 } catch (Exception e) {
                     // Log but continue
                 }
             }
+        }
+
+        // Validate that at least one site successfully prepared the writes
+        if (sitesWithPreparedWrites.isEmpty() && !tx.getWriteSet().isEmpty()) {
+            // Revert status since we're aborting
+            tx.setStatus(TxRecord.Status.ACTIVE);
+            abortTransaction(tx.getTxnId(), "No sites available to persist writes");
+            return;
         }
 
         // Commit at all accessed sites

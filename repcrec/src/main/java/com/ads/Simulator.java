@@ -25,7 +25,7 @@ public class Simulator {
     public static void main(String[] args) {
         // Check if file input is provided otherwise take input from stdin
         for (int i = 0; i < args.length; i++) {
-            if (args[i].equals("-f") || args[i].equals("--file") && i + 1 < args.length) {
+            if ((args[i].equals("-f") || args[i].equals("--file")) && i + 1 < args.length) {
                 try {
                     System.setIn(new java.io.FileInputStream(args[i + 1]));
                 } catch (FileNotFoundException e) {
