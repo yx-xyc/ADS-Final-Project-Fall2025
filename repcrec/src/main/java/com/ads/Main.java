@@ -17,10 +17,10 @@ public class Main {
     private final Scanner scanner;
 
     public Main() {
-        // Create stub DataManagers for all 10 sites
+        // Create DataManagers for all 10 sites
         Map<Integer, IDataManager> dataManagers = new HashMap<>();
         for (int i = 1; i <= 10; i++) {
-            dataManagers.put(i, new StubDataManager(i));
+            dataManagers.put(i, new DataManager(i));
         }
 
         this.tm = new TransactionManager(dataManagers);

@@ -147,20 +147,6 @@ public class DataManager implements IDataManager {
     }
 
     @Override
-    public void recover() {
-        this.isUp = true;
-        // In a real implementation, we would take the current system time.
-        // Since the interface does not pass time, we rely on external coordination 
-        // or we need to update the interface. 
-        // IMPORTANT: For the StaleReadException logic (startTime > recoveryTime) to work,
-        // we need to know WHEN we recovered.
-        // Since I cannot change the interface defined in the design doc, 
-        // I will assume we track this via a separate mechanism or the TM handles it.
-        // For now, setting it to -1 or a specific value requires context.
-        // Use `recover(int time)` if possible.
-    }
-    
-    // Overload to make the logic work for simulation ticks
     public void recover(int time) {
         this.isUp = true;
         this.lastRecoveryTime = time;

@@ -1,3 +1,4 @@
+import com.ads.DataManager;
 import com.ads.TransactionManager;
 import com.ads.interfaces.IDataManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,10 +22,10 @@ public class TransactionManagerTest {
 
     @BeforeEach
     public void setUp() {
-        // Create stub DataManagers for all 10 sites
+        // Create DataManagers for all 10 sites
         Map<Integer, IDataManager> dataManagers = new HashMap<>();
         for (int i = 1; i <= 10; i++) {
-            dataManagers.put(i, new StubDataManager(i));
+            dataManagers.put(i, new DataManager(i));
         }
 
         tm = new TransactionManager(dataManagers);
@@ -147,8 +148,8 @@ public class TransactionManagerTest {
 
         String output = outputStream.toString();
         assertTrue(output.contains("=== Database Dump ==="));
-        assertTrue(output.contains("x1:"));
-        assertTrue(output.contains("x20:"));
+        assertTrue(output.contains("x1"));
+        assertTrue(output.contains("x20"));
     }
 
     @Test

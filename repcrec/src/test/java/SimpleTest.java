@@ -1,3 +1,4 @@
+import com.ads.DataManager;
 import com.ads.TransactionManager;
 import com.ads.interfaces.IDataManager;
 import java.util.HashMap;
@@ -10,10 +11,10 @@ public class SimpleTest {
     public static void main(String[] args) {
         System.out.println("=== Simple TransactionManager Test ===\n");
 
-        // Create stub DataManagers
+        // Create DataManagers
         Map<Integer, IDataManager> dataManagers = new HashMap<>();
         for (int i = 1; i <= 10; i++) {
-            dataManagers.put(i, new StubDataManager(i));
+            dataManagers.put(i, new DataManager(i));
         }
 
         TransactionManager tm = new TransactionManager(dataManagers);

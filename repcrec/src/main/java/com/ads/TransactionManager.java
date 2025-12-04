@@ -65,13 +65,13 @@ public class TransactionManager implements ITransactionManager {
     }
 
     /**
-     * Factory method to create stub DataManagers for all 10 sites.
-     * @return Map of site ID to StubDataManager instance
+     * Factory method to create real DataManagers for all 10 sites.
+     * @return Map of site ID to DataManager instance
      */
     private static Map<Integer, IDataManager> createStubDataManagers() {
         Map<Integer, IDataManager> managers = new HashMap<>();
         for (int i = 1; i <= NUM_SITES; i++) {
-            managers.put(i, new StubDataManager(i));
+            managers.put(i, new DataManager(i));
         }
         return managers;
     }
@@ -318,11 +318,11 @@ public class TransactionManager implements ITransactionManager {
         // Mark site UP
         siteDirectory.recover(siteId, logicalClock);
 
-        // Notify DataManager
+        // Notify DataManager with recovery time
         try {
             IDataManager dm = dataManagers.get(siteId);
             if (dm != null) {
-                dm.recover();
+                dm.recover(logicalClock);
             }
         } catch (Exception e) {
             // Ignore
@@ -645,7 +645,8 @@ public class TransactionManager implements ITransactionManager {
                         IDataManager dm = dataManagers.get(siteId);
                         if (dm != null) {
                             int value = dm.read("DUMP", varName, Integer.MAX_VALUE);
-                            boolean stale = staleVariables.get(siteId).contains(varName);
+                            Set<String> staleVars = staleVariables.get(siteId);
+                            boolean stale = staleVars != null && staleVars.contains(varName);
                             cellContent = stale ? String.format("%3d*", value) : String.format(" %3d ", value);
                         }
                     } catch (Exception e) {
