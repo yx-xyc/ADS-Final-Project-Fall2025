@@ -202,7 +202,8 @@ public class TransactionManager implements ITransactionManager {
      * A site is valid for reading if:
      * 1. Site is currently UP
      * 2. If replicated, variable is not stale
-     * 3. Site was continuously UP since transaction start
+     * 3. If replicated, site must have been continuously UP since tx start
+     *    (For non-replicated, skip this check - they're authoritative and immediately readable)
      *
      * If no valid site found, block the transaction.
      * @param tx Transaction record
@@ -219,8 +220,9 @@ public class TransactionManager implements ITransactionManager {
             // Check 2: If replicated, must not be stale
             if (isRepl && staleVariables.get(siteId).contains(varId)) continue;
 
-            // Check 3: Site must have been continuously UP since tx start
-            if (!siteDirectory.wasContinuouslyUp(siteId, tx.getStartTime())) continue;
+            // Check 3: If replicated, site must have been continuously UP since tx start
+            // For non-replicated variables, skip this check (they're authoritative)
+            if (isRepl && !siteDirectory.wasContinuouslyUp(siteId, tx.getStartTime())) continue;
 
             // Attempt read from DataManager
             try {
@@ -244,7 +246,16 @@ public class TransactionManager implements ITransactionManager {
         // No valid site found - block transaction
         System.out.println(tx.getTxnId() + " waits for " + varId);
         blockedTransactions.add(tx.getTxnId());
-        waitQueue.add(new PendingOperation(tx.getTxnId(), "READ", varId, logicalClock));
+
+        // Only add to wait queue if not already waiting for this operation
+        boolean alreadyWaiting = waitQueue.stream()
+            .anyMatch(op -> op.txnId.equals(tx.getTxnId()) &&
+                           op.operation.equals("READ") &&
+                           op.varId.equals(varId));
+
+        if (!alreadyWaiting) {
+            waitQueue.add(new PendingOperation(tx.getTxnId(), "READ", varId, logicalClock));
+        }
     }
 
     /**
@@ -497,13 +508,24 @@ public class TransactionManager implements ITransactionManager {
 
         Set<Integer> sitesWithPreparedWrites = new HashSet<>();
         // Prepare writes at all relevant DataManagers
+        // Use writeTargets to write only to sites that were UP when write was issued
         for (Map.Entry<String, Integer> write : tx.getWriteSet().entrySet()) {
             String varId = write.getKey();
             int value = write.getValue();
-            Set<Integer> targetSites = getSitesForVariable(varId);
+
+            // Get the sites that were available when this write was issued
+            TxRecord.WriteMetadata metadata = tx.getWriteTargets().get(varId);
+            if (metadata == null) {
+                // This should never happen - writeSet and writeTargets must be in sync
+                // If metadata is missing, abort rather than violating Available Copies
+                tx.setStatus(TxRecord.Status.ACTIVE);
+                abortTransaction(tx.getTxnId(), "Missing write metadata for " + varId);
+                return;
+            }
+            Set<Integer> targetSites = metadata.getTargetSites();
 
             for (int siteId : targetSites) {
-                if (!siteDirectory.isUp(siteId)) continue;
+                if (!siteDirectory.isUp(siteId)) continue;  // Site must still be UP now
 
                 try {
                     IDataManager dm = dataManagers.get(siteId);
@@ -571,6 +593,13 @@ public class TransactionManager implements ITransactionManager {
             return;
         }
 
+        // Check if transaction is blocked on pending operations
+        if (blockedTransactions.contains(txnId)) {
+            System.out.println("Transaction " + txnId + " aborts: blocked on pending operations");
+            abortTransaction(txnId, "Blocked on pending operations");
+            return;
+        }
+
         // Read-only optimization
         if (tx.getWriteSet().isEmpty()) {
             tx.setStatus(TxRecord.Status.COMMITTED);
@@ -615,25 +644,32 @@ public class TransactionManager implements ITransactionManager {
         // Commit phase
         commitTransaction(tx);
 
-        // Cleanup old transactions from graph
-        int minActiveStart = Integer.MAX_VALUE;
-        for (TxRecord active : transactions.values()) {
-            if (active.getStatus() == TxRecord.Status.ACTIVE) {
-                minActiveStart = Math.min(minActiveStart, active.getStartTime());
-            }
+        // Cleanup: Remove old transactions from graph when safe
+        cleanupSerializationGraph();
+    }
+
+    /**
+     * Remove committed transactions from serialization graph when safe.
+     * Conservative approach: only cleanup when no active transactions remain.
+     *
+     * This ensures no future committing transaction will need to create edges
+     * to/from the removed transactions.
+     */
+    private void cleanupSerializationGraph() {
+        // Check if there are any active transactions
+        boolean hasActive = transactions.values().stream()
+            .anyMatch(t -> t.getStatus() == TxRecord.Status.ACTIVE);
+
+        if (hasActive) {
+            return; // Cannot safely remove - active txns may need these for edge building
         }
 
-        List<String> toRemove = new ArrayList<>();
-        for (TxRecord committed : transactions.values()) {
-            if (committed.getStatus() == TxRecord.Status.COMMITTED &&
-                committed.getCommitTime() < minActiveStart) {
-                toRemove.add(committed.getTxnId());
+        // Safe to remove all committed transactions from graph
+        // (Keep them in transactions map for history/debugging)
+        for (TxRecord tx : transactions.values()) {
+            if (tx.getStatus() == TxRecord.Status.COMMITTED) {
+                serializationGraph.removeTransaction(tx.getTxnId());
             }
-        }
-
-        for (String oldTxn : toRemove) {
-            serializationGraph.removeTransaction(oldTxn);
-            transactions.remove(oldTxn);
         }
     }
 

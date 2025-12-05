@@ -80,26 +80,28 @@ public class DataManager implements IDataManager {
         }
 
         final Variable var = variables.get(variableId);
-        
-        // RECOVERY CHECK:
-        // "A read from a transaction that begins after the recovery of site s for a replicated variable x 
-        // will not be allowed at s until a committed write to x takes place on s."
-        if (var.isReplicated() && lastRecoveryTime != -1) {
-            if (startTime > lastRecoveryTime) {
-                VersionedValue latest = var.getLatestVersion();
-                // If the latest commit happened BEFORE the recovery, we are stale.
-                if (latest.getCommitTime() < lastRecoveryTime) {
-                    throw new StaleReadException("Site " + siteId + " recovered but " + variableId + " has not been written yet.");
-                }
-            }
-        }
 
+        // Get the version appropriate for this transaction's snapshot
         final VersionedValue version = var.getVersionFor(startTime);
         if (version == null) {
              // Should not happen if initialized correctly at time 0
             throw new DataManagerException("No version found for " + variableId);
         }
-        
+
+        // AVAILABLE COPIES CHECK for replicated variables on recovered sites:
+        // For a replicated variable, if this site has recovered, we can only serve versions
+        // that were committed AFTER the recovery time. Versions from before recovery cannot
+        // be trusted because the site may not have been continuously available.
+        // Skip this check for DUMP operations - dump shows physical state with * marker
+        if (var.isReplicated() && lastRecoveryTime != -1 && !transactionId.equals("DUMP")) {
+            if (startTime > lastRecoveryTime) {
+                // If the version we need was committed before recovery, we cannot serve it
+                if (version.getCommitTime() < lastRecoveryTime) {
+                    throw new StaleReadException("Site " + siteId + " cannot serve version from before recovery");
+                }
+            }
+        }
+
         return version.getValue();
     }
 
