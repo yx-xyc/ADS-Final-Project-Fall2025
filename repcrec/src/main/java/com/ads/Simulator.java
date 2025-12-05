@@ -25,7 +25,7 @@ public class Simulator {
     public static void main(String[] args) {
         // Check if file input is provided otherwise take input from stdin
         for (int i = 0; i < args.length; i++) {
-            if (args[i].equals("-f") || args[i].equals("--file") && i + 1 < args.length) {
+            if ((args[i].equals("-f") || args[i].equals("--file")) && i + 1 < args.length) {
                 try {
                     System.setIn(new java.io.FileInputStream(args[i + 1]));
                 } catch (FileNotFoundException e) {
@@ -37,17 +37,9 @@ public class Simulator {
             }
         }
 
-        final Simulator simulator = new Simulator(null);
+        ITransactionManager tm = new TransactionManager();
+        final Simulator simulator = new Simulator(tm);
         simulator.run();
-        
-        // TODO: Instantiate your concrete TransactionManager here once implemented
-        // ITransactionManager tm = new TransactionManager(); 
-        
-        // For now, we can't run this without the concrete TM.
-        System.out.println("TransactionManager not yet implemented. Please instantiate in Driver.main()");
-        
-        // Driver driver = new Driver(tm);
-        // driver.run(args);
     }
 
     /**
@@ -62,10 +54,18 @@ public class Simulator {
                 final Command command = parser.parse(line);
                 if (command != null) {
                     // Call TM with this command
-                    System.out.println("Executing command: " + command);
-                } else {
-                    System.out.println("Invalid command: " + line);
-                }
+                    // System.out.println("Executing command: " + command);
+                    
+                    switch (command.getType()) {
+                        case BEGIN -> tm.begin(command.getArgs()[0]);
+                        case READ -> tm.read(command.getArgs()[0], command.getArgs()[1]);
+                        case WRITE -> tm.write(command.getArgs()[0], command.getArgs()[1], Integer.parseInt(command.getArgs()[2]));
+                        case DUMP -> tm.dump();
+                        case END -> tm.end(command.getArgs()[0]);
+                        case FAIL -> tm.fail(Integer.parseInt(command.getArgs()[0]));
+                        case RECOVER -> tm.recover(Integer.parseInt(command.getArgs()[0]));
+                    }
+                } 
             } catch (IllegalArgumentException e) {
                 System.out.println("Ignoring invalid argument: " + e.getMessage());
             } catch (Exception e) {
