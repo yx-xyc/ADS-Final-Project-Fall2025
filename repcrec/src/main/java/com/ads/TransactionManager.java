@@ -189,7 +189,7 @@ public class TransactionManager implements ITransactionManager {
         // Check own writes first
         if (tx.getWriteSet().containsKey(varId)) {
             int value = tx.getWriteSet().get(varId);
-            System.out.println(txnId + " reads " + varId + ": " + value + " (own write)");
+            System.out.println(varId + ": " + value);
             return;
         }
 
@@ -234,7 +234,7 @@ public class TransactionManager implements ITransactionManager {
                 // Success!
                 tx.addRead(varId, logicalClock); // Record version time
                 tx.addSiteAccess(siteId);
-                System.out.println(tx.getTxnId() + " reads " + varId + ": " + value);
+                System.out.println(varId + ": " + value);
                 return;
 
             } catch (Exception e) {
@@ -284,7 +284,7 @@ public class TransactionManager implements ITransactionManager {
             }
         }
 
-        System.out.println("Transaction " + txnId + " aborts: " + reason);
+        System.out.println(txnId + " aborts");
     }
 
     /**
@@ -572,7 +572,7 @@ public class TransactionManager implements ITransactionManager {
         // Retry blocked transactions
         processWaitQueue();
 
-        System.out.println("Transaction " + tx.getTxnId() + " commits");
+        System.out.println(tx.getTxnId() + " commits");
     }
 
     /**
@@ -595,7 +595,7 @@ public class TransactionManager implements ITransactionManager {
 
         // Check if transaction is blocked on pending operations
         if (blockedTransactions.contains(txnId)) {
-            System.out.println("Transaction " + txnId + " aborts: blocked on pending operations");
+            System.out.println(txnId + " aborts");
             abortTransaction(txnId, "Blocked on pending operations");
             return;
         }
@@ -604,7 +604,7 @@ public class TransactionManager implements ITransactionManager {
         if (tx.getWriteSet().isEmpty()) {
             tx.setStatus(TxRecord.Status.COMMITTED);
             tx.setCommitTime(logicalClock);
-            System.out.println("Transaction " + txnId + " commits (read-only)");
+            System.out.println(txnId + " commits");
             return;
         }
 
