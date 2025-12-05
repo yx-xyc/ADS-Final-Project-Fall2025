@@ -41,6 +41,7 @@ public class Main {
             String line = scanner.nextLine().trim();
 
             // Handle special commands
+            //TODO: Check if we need to increment time here
             if (line.isEmpty()) {
                 continue;
             }
