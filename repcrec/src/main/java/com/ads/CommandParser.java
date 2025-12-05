@@ -22,6 +22,11 @@ public class CommandParser {
         final String commandType = line.substring(0, line.indexOf('('));
         final String[] argsArray = line.substring(line.indexOf('(') + 1, line.indexOf(')')).trim().split(",");
 
+        // Trim each argument to remove spaces and newlines
+        for (int i = 0; i < argsArray.length; i++) {
+            argsArray[i] = argsArray[i].trim();
+        }
+
         switch (commandType) {
             case "begin" -> {
                 return new Command(CommandType.BEGIN, argsArray);

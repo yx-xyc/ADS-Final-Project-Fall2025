@@ -12,5 +12,5 @@ public interface IDataManager {
     void commit(String transactionId, int commitTime) throws Exception;
     void abort(String transactionId);
     void fail();
-    void recover();
+    void recover(int time);
 }
