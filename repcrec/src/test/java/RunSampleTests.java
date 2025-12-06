@@ -13,15 +13,24 @@ import com.ads.Command;
 import com.ads.CommandParser;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.TestInfo;
+
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestWatcher;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 /**
  * JUnit tests based on the provided sample input file.
@@ -31,9 +40,24 @@ public class RunSampleTests {
     private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     private final PrintStream originalOut = System.out;
     private CommandParser parser;
+    private static final List<String> testLogs = new ArrayList<>();
+
+    @SuppressWarnings("unused")
+    @RegisterExtension
+    TestWatcher watcher = new TestWatcher() {
+        @Override
+        public void testFailed(ExtensionContext context, Throwable cause) {
+            testLogs.add(formatLog(context.getDisplayName(), "FAILED", outputStream.toString()));
+        }
+
+        @Override
+        public void testSuccessful(ExtensionContext context) {
+            testLogs.add(formatLog(context.getDisplayName(), "PASSED", outputStream.toString()));
+        }
+    };
 
     @BeforeEach
-    public void setUp() {
+    public void setUp(TestInfo testInfo) {
         // Create DataManagers for all 10 sites
         Map<Integer, IDataManager> dataManagers = new HashMap<>();
         for (int i = 1; i <= 10; i++) {
@@ -42,7 +66,10 @@ public class RunSampleTests {
 
         tm = new TransactionManager(dataManagers);
         parser = new CommandParser();
-        System.setOut(new PrintStream(new TeeOutputStream(outputStream, originalOut)));
+        
+        // Capture output only to buffer; we will print once in @AfterAll
+        outputStream.reset();
+        System.setOut(new PrintStream(outputStream));
     }
 
     @AfterEach
@@ -50,41 +77,18 @@ public class RunSampleTests {
         System.setOut(originalOut);
     }
 
-    private static class TeeOutputStream extends java.io.OutputStream {
-        private final java.io.OutputStream out1;
-        private final java.io.OutputStream out2;
-
-        public TeeOutputStream(java.io.OutputStream out1, java.io.OutputStream out2) {
-            this.out1 = out1;
-            this.out2 = out2;
-        }
-
-        @Override
-        public void write(int b) throws java.io.IOException {
-            out1.write(b);
-            out2.write(b);
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) throws java.io.IOException {
-            out1.write(b, off, len);
-            out2.write(b, off, len);
-        }
-
-        @Override
-        public void flush() throws java.io.IOException {
-            out1.flush();
-            out2.flush();
-        }
+    @AfterAll
+    public static void printCollectedLogs() {
+        // Print all collected logs once, separated by test name and status
+        if (testLogs.isEmpty()) return;
+        System.out.println("\n================ Test Output ================");
+        testLogs.forEach(System.out::println);
+        System.out.println("============== End Test Output ==============");
     }
 
     private void run(String line) {
-        try {
-            Command command = parser.parse(line);
-            tm.execute(command);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        Command command = parser.parse(line);
+        tm.execute(command);
     }
 
     private String getOutput() {
@@ -93,6 +97,10 @@ public class RunSampleTests {
 
     private void clearOutput() {
         outputStream.reset();
+    }
+
+    private String formatLog(String testName, String status, String log) {
+        return "----- " + status + " : " + testName + " -----\n" + log + "\n";
     }
 
     @Test
@@ -209,6 +217,7 @@ public class RunSampleTests {
         assertTrue(getOutput().contains("T1 commits"));
     }
 
+    //TODO: To be fixed
     @Test
     public void test4_AbortOnSiteFailureAccess() {
         run("begin(T1)");
@@ -714,6 +723,7 @@ public class RunSampleTests {
         assertTrue(getOutput().contains("waits") || getOutput().contains("aborts"));
     }
 
+    //TODO: To be fixed: we don't print the rest of T3 read after it's unblocked
     @Test
     public void test25_WaitAndRecover() {
         // Setup same as 23
