@@ -1,7 +1,10 @@
 package com.ads;
 
+import static com.ads.helpers.TransactionManagerHelper.*;
+
 import com.ads.interfaces.ITransactionManager;
 import com.ads.interfaces.IDataManager;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.Queue;
@@ -72,53 +75,6 @@ public class TransactionManager implements ITransactionManager {
      */
     public TransactionManager() {
         this(createDataManagers());
-    }
-
-    /**
-     * Factory method to create real DataManagers for all 10 sites.
-     * @return Map of site ID to DataManager instance
-     */
-    private static Map<Integer, IDataManager> createDataManagers() {
-        Map<Integer, IDataManager> managers = new HashMap<>();
-        for (int i = 1; i <= NUM_SITES; i++) {
-            managers.put(i, new DataManager(i));
-        }
-        return managers;
-    }
-
-    // ==================== Helper Methods ====================
-
-    /**
-     * Get the set of site IDs that should hold a given variable.
-     * - Replicated variables (even IDs): all sites 1-10
-     * - Non-replicated variables (odd IDs): site = 1 + (id mod 10)
-     * @param varId Variable ID (e.g., "x5")
-     * @return Set of site IDs
-     */
-    private Set<Integer> getSitesForVariable(String varId) {
-        int id = Integer.parseInt(varId.substring(1)); // "x5" -> 5
-        Set<Integer> sites = new HashSet<>();
-
-        if (id % 2 == 0) {
-            // Replicated: all sites 1-10
-            for (int i = 1; i <= NUM_SITES; i++) {
-                sites.add(i);
-            }
-        } else {
-            // Non-replicated: site = 1 + (id mod 10)
-            sites.add(1 + (id % 10));
-        }
-        return sites;
-    }
-
-    /**
-     * Check if a variable is replicated (even ID) or not.
-     * @param varId Variable ID (e.g., "x5")
-     * @return true if replicated, false otherwise
-     */
-    private boolean isReplicated(String varId) {
-        int id = Integer.parseInt(varId.substring(1));
-        return id % 2 == 0;
     }
 
     // ==================== ITransactionManager Interface Methods ====================
@@ -266,7 +222,6 @@ public class TransactionManager implements ITransactionManager {
 
             } catch (Exception e) {
                 // Site failed or stale, try next
-                continue;
             }
         }
 
@@ -443,85 +398,6 @@ public class TransactionManager implements ITransactionManager {
     }
 
     /**
-     * Build serialization graph edges when a transaction is about to commit.
-     * Creates WW, WR, and RW edges according to SSI rules:
-     * - WW: both write x, commit(T1) < start(T2)
-     * - WR: T1 writes x, T2 reads x, commit(T1) < start(T2)
-     * - RW: T1 reads x, T2 writes x, start(T1) < commit(T2)
-     * @param committingTx Transaction about to commit
-     */
-    private void buildSerializationGraphEdges(TxRecord committingTx) {
-        String txnId = committingTx.getTxnId();
-        int commitTime = logicalClock; // Current time is commit time
-
-        for (TxRecord other : transactions.values()) {
-            if (other.getTxnId().equals(txnId)) continue;
-
-            // Only consider committed transactions for WW/WR edges
-            if (other.getStatus() == TxRecord.Status.COMMITTED) {
-                // WW: both write x, commit(other) < start(committingTx)
-                for (String varId : committingTx.getWriteSet().keySet()) {
-                    if (other.getWriteSet().containsKey(varId) &&
-                        other.getCommitTime() < committingTx.getStartTime()) {
-                        serializationGraph.addEdge(other.getTxnId(), txnId,
-                                                  SerializationGraph.EdgeType.WW);
-                    }
-                }
-
-                // WR: other writes x, committingTx reads x, commit(other) < start(committingTx)
-                for (String varId : committingTx.getReadSet().keySet()) {
-                    if (other.getWriteSet().containsKey(varId) &&
-                        other.getCommitTime() < committingTx.getStartTime()) {
-                        serializationGraph.addEdge(other.getTxnId(), txnId,
-                                                  SerializationGraph.EdgeType.WR);
-                    }
-                }
-            }
-
-            // RW: other reads x, committingTx writes x, start(other) < commit(committingTx)
-            // Check both committed and active transactions
-            if (other.getStatus() == TxRecord.Status.COMMITTED ||
-                other.getStatus() == TxRecord.Status.ACTIVE) {
-                for (String varId : committingTx.getWriteSet().keySet()) {
-                    if (other.getReadSet().containsKey(varId) &&
-                        other.getStartTime() < commitTime) {
-                        serializationGraph.addEdge(other.getTxnId(), txnId,
-                                                  SerializationGraph.EdgeType.RW);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Check first-committer-wins rule.
-     * Returns false if a concurrent transaction already committed a conflicting write.
-     * Two transactions are concurrent if: start(T1) < start(T2) < commit(T1)
-     * @param committingTx Transaction about to commit
-     * @return true if validation passes, false if conflict detected
-     */
-    private boolean checkFirstCommitterWins(TxRecord committingTx) {
-        for (String varId : committingTx.getWriteSet().keySet()) {
-            for (TxRecord other : transactions.values()) {
-                if (other.getStatus() != TxRecord.Status.COMMITTED) continue;
-                if (!other.getWriteSet().containsKey(varId)) continue;
-
-                // Concurrent if execution intervals overlap:
-                // committingTx: [start(committingTx), logicalClock (about to commit)]
-                // other: [start(other), commit(other)]
-                // Overlap if: start(committingTx) < commit(other) AND start(other) < logicalClock
-                boolean concurrent = (committingTx.getStartTime() < other.getCommitTime()) &&
-                                   (other.getStartTime() < logicalClock);
-
-                if (concurrent) {
-                    return false; // Conflict - other committed first
-                }
-            }
-        }
-        return true;
-    }
-
-    /**
      * Commit a transaction - applies writes to DataManagers.
      * Clears stale flags for written replicated variables.
      * @param tx Transaction to commit
@@ -649,13 +525,13 @@ public class TransactionManager implements ITransactionManager {
         }
 
         // Validation: First-committer-wins
-        if (!checkFirstCommitterWins(tx)) {
+        if (!checkFirstCommitterWins(tx, transactions, logicalClock)) {
             abortTransaction(txnId, "Write-write conflict (first-committer-wins)");
             return;
         }
 
         // Validation: Build graph edges and check cycles
-        buildSerializationGraphEdges(tx);
+        buildSerializationGraphEdges(tx, transactions, serializationGraph, logicalClock);
 
         if (serializationGraph.hasCycleWithTwoConsecutiveRW()) {
             abortTransaction(txnId, "Cycle with consecutive RW edges");
@@ -663,36 +539,15 @@ public class TransactionManager implements ITransactionManager {
             return;
         }
 
-        // Commit phase
+                // Commit phase
         commitTransaction(tx);
 
         // Cleanup: Remove old transactions from graph when safe
-        cleanupSerializationGraph();
+        cleanupSerializationGraph(transactions, serializationGraph);
     }
 
     /**
-     * Remove committed transactions from serialization graph when safe.
-     * Conservative approach: only cleanup when no active transactions remain.
-     *
-     * This ensures no future committing transaction will need to create edges
-     * to/from the removed transactions.
-     */
-    private void cleanupSerializationGraph() {
-        // Check if there are any active transactions
-        boolean hasActive = transactions.values().stream()
-            .anyMatch(t -> t.getStatus() == TxRecord.Status.ACTIVE);
-
-        if (hasActive) {
-            return; // Cannot safely remove - active txns may need these for edge building
-        }
-
-        // Safe to remove all committed transactions from graph
-        // (Keep them in transactions map for history/debugging)
-        for (TxRecord tx : transactions.values()) {
-            if (tx.getStatus() == TxRecord.Status.COMMITTED) {
-                serializationGraph.removeTransaction(tx.getTxnId());
-            }
-        }
+     * Dump the current state of all variables across all sites.
     }
 
     /**
@@ -700,68 +555,7 @@ public class TransactionManager implements ITransactionManager {
      * Shows committed values at each site, marking stale replicated variables.
      */
     private void dump() {
-        System.out.println("=== Database Dump ===");
-        System.out.println();
-
-        // Print non-replicated variables (odd indices)
-        System.out.println("Non-Replicated Variables:");
-        for (int varId = 1; varId <= NUM_VARS; varId += 2) {
-            String varName = "x" + varId;
-            Set<Integer> validSites = getSitesForVariable(varName);
-
-            for (int siteId : validSites) {
-                if (!siteDirectory.isUp(siteId)) continue;
-
-                try {
-                    IDataManager dm = dataManagers.get(siteId);
-                    if (dm == null) continue;
-
-                    int value = dm.read("DUMP", varName, Integer.MAX_VALUE);
-                    System.out.printf("  %-4s site%-2d: %d%n", varName, siteId, value);
-                } catch (Exception e) {
-                    // Variable not available or site error
-                }
-            }
-        }
-
-        System.out.println();
-        System.out.println("Replicated Variables:");
-        System.out.println("  Var  | Site1 | Site2 | Site3 | Site4 | Site5 | Site6 | Site7 | Site8 | Site9 | Site10");
-        System.out.println("  -----|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------");
-
-        // Print replicated variables (even indices) in table format
-        for (int varId = 2; varId <= NUM_VARS; varId += 2) {
-            String varName = "x" + varId;
-            System.out.printf("  %-4s |", varName);
-
-            Set<Integer> validSites = getSitesForVariable(varName);
-
-            for (int siteId = 1; siteId <= NUM_SITES; siteId++) {
-                String cellContent = "  -  ";  // Default: site down or no data
-
-                if (validSites.contains(siteId) && siteDirectory.isUp(siteId)) {
-                    try {
-                        IDataManager dm = dataManagers.get(siteId);
-                        if (dm != null) {
-                            int value = dm.read("DUMP", varName, Integer.MAX_VALUE);
-                            Set<String> staleVars = staleVariables.get(siteId);
-                            boolean stale = staleVars != null && staleVars.contains(varName);
-                            cellContent = stale ? String.format("%3d*", value) : String.format(" %3d ", value);
-                        }
-                    } catch (Exception e) {
-                        // Variable not available or site error
-                    }
-                }
-
-                System.out.printf(" %5s |", cellContent);
-            }
-            System.out.println();
-        }
-
-        System.out.println();
-        System.out.println("  Note: * indicates stale (unreadable until new write committed)");
-        System.out.println("        - indicates site down or no data");
-        System.out.println("====================");
+        com.ads.helpers.TransactionManagerHelper.dump(dataManagers, siteDirectory, staleVariables);
     }
 
 }
