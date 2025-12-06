@@ -85,7 +85,7 @@ public class SiteDirectory {
     /**
      * Check if a site has been continuously UP since the given time.
      * This is crucial for the Available Copies algorithm.
-     * 
+     *
      * @param siteId    The site to check
      * @param sinceTime The time to check from (usually transaction start time)
      * @return true if site was up from sinceTime until now
@@ -104,6 +104,37 @@ public class SiteDirectory {
             UptimeInterval interval = history.get(i);
             if (interval.start <= sinceTime) {
                 return interval.end == -1;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if a site was continuously UP between two time points.
+     * Used for Available Copies algorithm validation: a site can only serve a version
+     * if it was continuously UP from the version's commit time through the transaction's
+     * start time (snapshot time).
+     *
+     * @param siteId    The site to check
+     * @param fromTime  The start of the interval (inclusive)
+     * @param toTime    The end of the interval (inclusive)
+     * @return true if site was continuously UP throughout [fromTime, toTime]
+     */
+    public boolean wasContinuouslyUpBetween(int siteId, int fromTime, int toTime) {
+        List<UptimeInterval> history = uptimeHistory.get(siteId);
+        if (history == null || history.isEmpty()) {
+            return false;
+        }
+
+        // Find an uptime interval that covers the entire [fromTime, toTime] range
+        for (UptimeInterval interval : history) {
+            // Check if this interval started before or at fromTime
+            if (interval.start <= fromTime) {
+                // Check if this interval covers through toTime
+                // Either it's still open (end == -1) or it ended after toTime
+                if (interval.end == -1 || interval.end > toTime) {
+                    return true;
+                }
             }
         }
         return false;

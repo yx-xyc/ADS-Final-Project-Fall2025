@@ -10,6 +10,7 @@ import com.ads.DataManager;
 import com.ads.TxRecord;
 import com.ads.SerializationGraph;
 import com.ads.SiteDirectory;
+import com.ads.VersionedValue;
 
 
 /**
@@ -194,7 +195,8 @@ public class TransactionManagerHelper {
                     IDataManager dm = dataManagers.get(siteId);
                     if (dm == null) continue;
 
-                    int value = dm.read("DUMP", varName, Integer.MAX_VALUE);
+                    VersionedValue versionedValue = dm.read("DUMP", varName, Integer.MAX_VALUE);
+                    int value = versionedValue.getValue();
                     System.out.printf("  %-4s site%-2d: %d%n", varName, siteId, value);
                 } catch (Exception e) {
                     // Variable not available or site error
@@ -221,7 +223,8 @@ public class TransactionManagerHelper {
                     try {
                         IDataManager dm = dataManagers.get(siteId);
                         if (dm != null) {
-                            int value = dm.read("DUMP", varName, Integer.MAX_VALUE);
+                            VersionedValue versionedValue = dm.read("DUMP", varName, Integer.MAX_VALUE);
+                            int value = versionedValue.getValue();
                             Set<String> staleVars = staleVariables.get(siteId);
                             boolean stale = staleVars != null && staleVars.contains(varName);
                             cellContent = stale ? String.format("%3d*", value) : String.format(" %3d ", value);
