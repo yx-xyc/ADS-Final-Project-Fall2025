@@ -217,7 +217,6 @@ public class RunSampleTests {
         assertTrue(getOutput().contains("T1 commits"));
     }
 
-    //TODO: To be fixed
     @Test
     public void test4_AbortOnSiteFailureAccess() {
         run("begin(T1)");
@@ -723,7 +722,6 @@ public class RunSampleTests {
         assertTrue(getOutput().contains("waits") || getOutput().contains("aborts"));
     }
 
-    //TODO: To be fixed: we don't print the rest of T3 read after it's unblocked
     @Test
     public void test25_WaitAndRecover() {
         // Setup same as 23
