@@ -68,9 +68,9 @@ public class DataManager implements IDataManager {
     }
 
     @Override
-    public int read(String transactionId, String variableId, int startTime) 
+    public VersionedValue read(String transactionId, String variableId, int startTime)
             throws StaleReadException, SiteDownException, DataManagerException {
-        
+
         if (!isUp) {
             throw new SiteDownException("Site " + siteId + " is down.");
         }
@@ -102,7 +102,7 @@ public class DataManager implements IDataManager {
             }
         }
 
-        return version.getValue();
+        return version;
     }
 
     @Override

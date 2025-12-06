@@ -12,10 +12,10 @@ public class DataManagerTest {
         final DataManager dm = new DataManager(2);
         try {
             // x2 is even (replicated), x1 is odd (1 + 1%10 = 2).
-            int v2 = dm.read("T1", "x2", 5);
+            int v2 = dm.read("T1", "x2", 5).getValue();
             assertEquals(20, v2);
-            
-            int v1 = dm.read("T1", "x1", 5);
+
+            int v1 = dm.read("T1", "x1", 5).getValue();
             assertEquals(10, v1);
         } catch (Exception e) {
             fail(e.getMessage());
@@ -27,16 +27,16 @@ public class DataManagerTest {
         DataManager dm = new DataManager(1);
         // Prepare write
         dm.prepareWrite("T1", "x2", 100);
-        
+
         // Read before commit (snapshot time 5) -> Should see initial 20
-        int v = dm.read("T2", "x2", 5);
+        int v = dm.read("T2", "x2", 5).getValue();
         assertEquals(20, v);
-        
+
         // Commit at time 10
         dm.commit("T1", 10);
-        
+
         // Read after commit (snapshot time 11) -> Should see 100
-        v = dm.read("T3", "x2", 11);
+        v = dm.read("T3", "x2", 11).getValue();
         assertEquals(100, v);
     }
 
@@ -48,18 +48,18 @@ public class DataManagerTest {
         
         // T1 starts at 25. x2 has not been written since recovery.
         try {
-            dm.read("T1", "x2", 25);
+            dm.read("T1", "x2", 25).getValue();
             fail("Should have thrown StaleReadException");
         } catch (StaleReadException e) {
             // Expected
         }
-        
+
         // Write to x2
         dm.prepareWrite("T_write", "x2", 50);
         dm.commit("T_write", 30);
-        
+
         // Now T2 (starts 35) should succeed
-        int v = dm.read("T2", "x2", 35);
+        int v = dm.read("T2", "x2", 35).getValue();
         assertEquals(50, v);
     }
 }
