@@ -115,14 +115,6 @@ repcrec/
 - **Serializable Snapshot Isolation (SSI)**: Cycle detection with FLOOS theorem
 - **Available Copies**: Replication with site failure handling
 
-## Development Notes
-
-**Recent Refactoring (PR#4):**
-- Simplified `ITransactionManager` to single `execute(Command)` method
-- Extracted helper methods to `TransactionManagerHelper` for better modularity
-- Added comprehensive `RunSampleTests.java` with 46 test cases
-- Note: 2 test failures (test4, test25) to be addressed in follow-up commits
-
 ## License
 
 MIT — see LICENSE
