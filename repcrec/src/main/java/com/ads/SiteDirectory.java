@@ -110,34 +110,6 @@ public class SiteDirectory {
     }
 
     /**
-     * Check if a site was UP at a specific point in time.
-     * Used for snapshot isolation reads - we only care if the site was UP
-     * when the snapshot was taken, not if it stayed up afterwards.
-     *
-     * @param siteId The site to check
-     * @param time   The specific time to check
-     * @return true if site was UP at the given time
-     */
-    public boolean wasUpAt(int siteId, int time) {
-        List<UptimeInterval> history = uptimeHistory.get(siteId);
-        if (history == null || history.isEmpty()) {
-            return false;
-        }
-
-        // Check each uptime interval to see if it contains the given time
-        for (UptimeInterval interval : history) {
-            // Check if time falls within this interval
-            if (interval.start <= time) {
-                // If interval is still open (end == -1) or time is before the end
-                if (interval.end == -1 || time < interval.end) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
      * Check if a site was continuously UP between two time points.
      * Used for Available Copies algorithm validation: a site can only serve a version
      * if it was continuously UP from the version's commit time through the transaction's
