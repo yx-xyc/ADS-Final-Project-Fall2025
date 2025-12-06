@@ -52,15 +52,6 @@ mvn test
 
 # Run specific test file
 mvn test -Dtest=RunSampleTests
-
-# Run all integration test cases from files
-./run-tests.sh
-
-# Show detailed differences for failures
-./run-tests.sh compare -v
-
-# Regenerate expected output after fixes
-./run-tests.sh generate
 ```
 
 **Test Coverage:**
