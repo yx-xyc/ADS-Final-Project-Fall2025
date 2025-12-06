@@ -10,4 +10,5 @@ import com.ads.Command;
 
 public interface ITransactionManager {
     void execute(Command command);
+    void incrementLogicalClock();
 }

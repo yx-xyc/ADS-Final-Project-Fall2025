@@ -45,8 +45,8 @@ public class Main {
             String line = scanner.nextLine().trim();
 
             // Handle special commands
-            //TODO: Check if we need to increment time here
             if (line.isEmpty()) {
+                tm.incrementLogicalClock();
                 continue;
             }
 
@@ -162,8 +162,16 @@ public class Main {
         System.out.println("Running commands from file: " + filePath);
         try {
             for (String rawLine : Files.readAllLines(path)) {
+                if (rawLine.isEmpty()) {
+                    // Increment time for blank lines
+                    tm.incrementLogicalClock();
+                    continue;
+                }
                 String line = stripInlineComment(rawLine).trim();
-                if (line.isEmpty()) continue;
+                if (line.isEmpty()) {
+                    // Ignore comment lines
+                    continue;
+                }
                 try {
                     Command command = parser.parse(line);
                     if (command != null) {
