@@ -97,6 +97,10 @@ public class TransactionManager implements ITransactionManager {
         }
     }
 
+    public void incrementLogicalClock() {
+        logicalClock++;
+    }
+
     // ==================== TransactionManager Primary Methods ====================
 
     /**
