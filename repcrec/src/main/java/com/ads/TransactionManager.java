@@ -2,11 +2,21 @@ package com.ads;
 
 import com.ads.interfaces.ITransactionManager;
 import com.ads.interfaces.IDataManager;
-import java.util.*;
+import java.util.Map;
+import java.util.Set;
+import java.util.Queue;
+import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Iterator;
+
 
 /**
  * Concrete implementation of the Transaction Manager.
- * Manages transactions, sites, and variables using Available Copies with Validation (Snapshot Isolation).
+ * @author Vincent Xu
+ * @version 1.0 (Created: 2025-11-27, Last Modified: 2025-12-04)
  */
 public class TransactionManager implements ITransactionManager {
     private static final int NUM_SITES = 10;
@@ -61,14 +71,14 @@ public class TransactionManager implements ITransactionManager {
      * Creates TransactionManager with StubDataManager instances for testing.
      */
     public TransactionManager() {
-        this(createStubDataManagers());
+        this(createDataManagers());
     }
 
     /**
      * Factory method to create real DataManagers for all 10 sites.
      * @return Map of site ID to DataManager instance
      */
-    private static Map<Integer, IDataManager> createStubDataManagers() {
+    private static Map<Integer, IDataManager> createDataManagers() {
         Map<Integer, IDataManager> managers = new HashMap<>();
         for (int i = 1; i <= NUM_SITES; i++) {
             managers.put(i, new DataManager(i));
@@ -113,14 +123,33 @@ public class TransactionManager implements ITransactionManager {
 
     // ==================== ITransactionManager Interface Methods ====================
 
+    @Override
+    public void execute(final Command command) throws UnsupportedOperationException {
+        if (command != null) {
+            switch (command.getType()) {
+                case BEGIN -> begin(command.getArgs()[0]);
+                case READ -> read(command.getArgs()[0], command.getArgs()[1]);
+                case WRITE -> write(command.getArgs()[0], command.getArgs()[1], Integer.parseInt(command.getArgs()[2]));
+                case DUMP -> dump();
+                case END -> end(command.getArgs()[0]);
+                case FAIL -> fail(Integer.parseInt(command.getArgs()[0]));
+                case RECOVER -> recover(Integer.parseInt(command.getArgs()[0]));
+                default -> throw new UnsupportedOperationException("Unknown command: " + command.getType());
+            }
+        } else {
+            throw new UnsupportedOperationException("Null command");
+        }
+    }
+
+    // ==================== TransactionManager Primary Methods ====================
+
     /**
      * Begin a new transaction.
      * Creates a TxRecord with the current logical clock as the transaction's start time.
      * This start time determines the transaction's snapshot view.
      * @param txnId Transaction ID
      */
-    @Override
-    public void begin(String txnId) {
+    private void begin(String txnId) {
         logicalClock++;
         TxRecord txRecord = new TxRecord(txnId, logicalClock);
         transactions.put(txnId, txRecord);
@@ -134,8 +163,7 @@ public class TransactionManager implements ITransactionManager {
      * @param varId Variable ID
      * @param value Value to write
      */
-    @Override
-    public void write(String txnId, String varId, int value) {
+    private void write(String txnId, String varId, int value) {
         logicalClock++;
 
         TxRecord tx = transactions.get(txnId);
@@ -176,8 +204,7 @@ public class TransactionManager implements ITransactionManager {
      * @param txnId Transaction ID
      * @param varId Variable ID
      */
-    @Override
-    public void read(String txnId, String varId) {
+    private void read(String txnId, String varId) {
         logicalClock++;
 
         TxRecord tx = transactions.get(txnId);
@@ -292,8 +319,7 @@ public class TransactionManager implements ITransactionManager {
      * Aborts all active transactions that have accessed this site (Available Copies requirement).
      * @param siteId Site ID
      */
-    @Override
-    public void fail(int siteId) {
+    private void fail(int siteId) {
         logicalClock++;
 
         // Mark site down
@@ -331,8 +357,7 @@ public class TransactionManager implements ITransactionManager {
      * Non-replicated variables remain immediately readable (authoritative copy).
      * @param siteId Site ID
      */
-    @Override
-    public void recover(int siteId) {
+    private void recover(int siteId) {
         logicalClock++;
 
         // Mark site UP
@@ -381,7 +406,6 @@ public class TransactionManager implements ITransactionManager {
 
             // Retry read
             if (op.operation.equals("READ")) {
-                boolean wasBlocked = blockedTransactions.contains(op.txnId);
                 blockedTransactions.remove(op.txnId);
 
                 tryReadFromSites(tx, op.varId);
@@ -583,8 +607,7 @@ public class TransactionManager implements ITransactionManager {
      * 3. Serialization graph cycle detection
      * @param txnId Transaction ID
      */
-    @Override
-    public void end(String txnId) {
+    private void end(String txnId) {
         logicalClock++;
 
         TxRecord tx = transactions.get(txnId);
@@ -612,7 +635,6 @@ public class TransactionManager implements ITransactionManager {
         // Spec: "if T writes to a site s and THEN s fails before T commits, then T should abort"
         // Key: Check from WRITE time, not transaction start time
         for (Map.Entry<String, TxRecord.WriteMetadata> entry : tx.getWriteTargets().entrySet()) {
-            String varId = entry.getKey();
             TxRecord.WriteMetadata metadata = entry.getValue();
             int writeTime = metadata.getWriteTime();
             Set<Integer> targetedSites = metadata.getTargetSites();
@@ -677,8 +699,7 @@ public class TransactionManager implements ITransactionManager {
      * Dump the current state of all variables across all sites.
      * Shows committed values at each site, marking stale replicated variables.
      */
-    @Override
-    public void dump() {
+    private void dump() {
         System.out.println("=== Database Dump ===");
         System.out.println();
 
