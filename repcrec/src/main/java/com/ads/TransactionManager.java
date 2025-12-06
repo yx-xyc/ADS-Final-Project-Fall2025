@@ -151,6 +151,12 @@ public class TransactionManager implements ITransactionManager {
 
         tx.addWriteTarget(varId, logicalClock, availableSites);
 
+        // Record site accesses for Available Copies abort-on-failure
+        // If any of these sites fail before commit, transaction must abort
+        for (int siteId : availableSites) {
+            tx.addSiteAccess(siteId);
+        }
+
         System.out.println("Transaction " + txnId + " writes " + value + " to " + varId);
     }
 
@@ -184,9 +190,15 @@ public class TransactionManager implements ITransactionManager {
      * Try to read from available sites using Available Copies algorithm.
      * A site is valid for reading if:
      * 1. Site is currently UP
-     * 2. If replicated, variable is not stale
-     * 3. If replicated, site must have been continuously UP since tx start
-     *    (For non-replicated, skip this check - they're authoritative and immediately readable)
+     * 2. For replicated variables: Site was continuously UP from the version's
+     *    commit time through NOW (when read happens)
+     *    For non-replicated variables: Skip this check (they're authoritative)
+     *
+     * The key insight: A site can only serve a version if it has been UP continuously
+     * since that version was committed. If the site failed and recovered in between,
+     * it might have missed later writes and cannot be trusted.
+     *
+     * DataManager.read() also performs staleness checks for recovered sites.
      *
      * If no valid site found, block the transaction.
      * @param tx Transaction record
@@ -197,24 +209,35 @@ public class TransactionManager implements ITransactionManager {
         boolean isRepl = isReplicated(varId);
 
         for (int siteId : candidateSites) {
-            // Check 1: Site must be UP
+            // Check 1: Site must be UP NOW
             if (!siteDirectory.isUp(siteId)) continue;
 
-            // Check 2: If replicated, must not be stale
-            if (isRepl && staleVariables.get(siteId).contains(varId)) continue;
-
-            // Check 3: If replicated, site must have been continuously UP since tx start
-            // For non-replicated variables, skip this check (they're authoritative)
-            if (isRepl && !siteDirectory.wasContinuouslyUp(siteId, tx.getStartTime())) continue;
-
-            // Attempt read from DataManager
+            // Attempt read from DataManager to get the version
             try {
                 IDataManager dm = dataManagers.get(siteId);
                 if (dm == null) continue; // DataManager not initialized yet
 
-                int value = dm.read(tx.getTxnId(), varId, tx.getStartTime());
+                VersionedValue versionedValue = dm.read(tx.getTxnId(), varId, tx.getStartTime());
 
-                // Success!
+                // Check 2: For replicated variables, validate Available Copies constraint:
+                // Site must have been continuously UP from the version's commit time
+                // through the transaction's START time (snapshot time).
+                // What happens after the snapshot doesn't affect snapshot isolation reads.
+                if (isRepl) {
+                    int versionCommitTime = versionedValue.getCommitTime();
+                    int txStartTime = tx.getStartTime();
+
+                    // Check if site was continuously UP from version commit to transaction start
+                    // by verifying no downtime occurred in that interval
+                    if (!siteDirectory.wasContinuouslyUpBetween(siteId, versionCommitTime, txStartTime)) {
+                        // Site was down at some point between version commit and snapshot time
+                        // Cannot trust this site for this read
+                        continue;
+                    }
+                }
+
+                // Success! This site can serve the read
+                int value = versionedValue.getValue();
                 tx.addRead(varId, logicalClock); // Record version time
                 tx.addSiteAccess(siteId);
                 System.out.println(varId + ": " + value);
@@ -386,6 +409,13 @@ public class TransactionManager implements ITransactionManager {
                 // If sites are now available, complete the write
                 if (!availableSites.isEmpty()) {
                     tx.addWriteTarget(op.varId, logicalClock, availableSites);
+
+                    // Record site accesses for Available Copies abort-on-failure
+                    // If any of these sites fail before commit, transaction must abort
+                    for (int siteId : availableSites) {
+                        tx.addSiteAccess(siteId);
+                    }
+
                     Integer value = tx.getWriteSet().get(op.varId);
                     System.out.println("Transaction " + tx.getTxnId() + " writes " + value + " to " + op.varId);
                     iter.remove();
@@ -487,8 +517,14 @@ public class TransactionManager implements ITransactionManager {
         logicalClock++;
 
         TxRecord tx = transactions.get(txnId);
-        if (tx == null || tx.getStatus() != TxRecord.Status.ACTIVE) {
-            System.out.println("Transaction " + txnId + " cannot commit");
+        if (tx == null) {
+            System.out.println(txnId + " does not exist");
+            return;
+        }
+
+        if (tx.getStatus() != TxRecord.Status.ACTIVE) {
+            // Transaction was already aborted (e.g., due to site failure)
+            System.out.println(txnId + " aborts");
             return;
         }
 
