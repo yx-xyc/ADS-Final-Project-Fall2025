@@ -2,6 +2,9 @@ package com.ads;
 
 import com.ads.interfaces.IDataManager;
 import com.ads.interfaces.ITransactionManager;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -42,8 +45,8 @@ public class Main {
             String line = scanner.nextLine().trim();
 
             // Handle special commands
-            //TODO: Check if we need to increment time here
             if (line.isEmpty()) {
+                tm.incrementLogicalClock();
                 continue;
             }
 
@@ -79,9 +82,9 @@ public class Main {
 
     private void printWelcome() {
         System.out.println("╔══════════════════════════════════════════════════════════════╗");
-        System.out.println("║   RepCRec Interactive Console - TransactionManager Tester   ║");
+        System.out.println("║   RepCRec Interactive Console                                ║");
         System.out.println("║                                                              ║");
-        System.out.println("║  Testing Serializable Snapshot Isolation (SSI) with         ║");
+        System.out.println("║  Testing Serializable Snapshot Isolation (SSI) with          ║");
         System.out.println("║  Available Copies Replication Algorithm                      ║");
         System.out.println("╚══════════════════════════════════════════════════════════════╝");
         System.out.println("\nType 'help' for commands, 'exit' to quit.");
@@ -137,6 +140,59 @@ public class Main {
 
     public static void main(String[] args) {
         Main console = new Main();
-        console.run();
+        if (args != null && args.length > 0) {
+            console.runFile(args[0]);
+        } else {
+            console.run();
+        }
+    }
+
+    /**
+     * Run commands from a file; supports line comments starting with //
+     * either on their own line or trailing after a command.
+     */
+    private void runFile(String filePath) {
+        Path path = Paths.get(filePath);
+        if (!Files.exists(path)) {
+            System.out.println("File not found: " + filePath);
+            System.out.println("Please provide the absolute path");
+            return;
+        }
+
+        System.out.println("Running commands from file: " + filePath);
+        try {
+            for (String rawLine : Files.readAllLines(path)) {
+                if (rawLine.isEmpty()) {
+                    // Increment time for blank lines
+                    tm.incrementLogicalClock();
+                    continue;
+                }
+                String line = stripInlineComment(rawLine).trim();
+                if (line.isEmpty()) {
+                    // Ignore comment lines
+                    continue;
+                }
+                try {
+                    Command command = parser.parse(line);
+                    if (command != null) {
+                        tm.execute(command);
+                    }
+                } catch (IllegalArgumentException e) {
+                    System.out.println("Invalid command: " + e.getMessage());
+                } catch (Exception e) {
+                    System.out.println("Error: " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Failed to read file: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Remove inline // comments; if the entire line is a comment, returns empty.
+     */
+    private String stripInlineComment(String line) {
+        int idx = line.indexOf("//");
+        return (idx >= 0) ? line.substring(0, idx) : line;
     }
 }
