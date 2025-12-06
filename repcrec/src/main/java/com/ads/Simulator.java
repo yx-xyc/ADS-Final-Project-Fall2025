@@ -52,23 +52,13 @@ public class Simulator {
             try {
                 String line = scanner.nextLine();
                 final Command command = parser.parse(line);
-                if (command != null) {
-                    // Call TM with this command
-                    // System.out.println("Executing command: " + command);
-                    
-                    switch (command.getType()) {
-                        case BEGIN -> tm.begin(command.getArgs()[0]);
-                        case READ -> tm.read(command.getArgs()[0], command.getArgs()[1]);
-                        case WRITE -> tm.write(command.getArgs()[0], command.getArgs()[1], Integer.parseInt(command.getArgs()[2]));
-                        case DUMP -> tm.dump();
-                        case END -> tm.end(command.getArgs()[0]);
-                        case FAIL -> tm.fail(Integer.parseInt(command.getArgs()[0]));
-                        case RECOVER -> tm.recover(Integer.parseInt(command.getArgs()[0]));
-                    }
-                } 
+                tm.execute(command);
             } catch (IllegalArgumentException e) {
                 System.out.println("Ignoring invalid argument: " + e.getMessage());
-            } catch (Exception e) {
+            } catch (UnsupportedOperationException e) {
+                System.out.println("Ignoring unsupported command: " + e.getMessage());
+            }
+            catch (Exception e) {
                 System.out.println("An unexpected error occurred: " + e.getMessage());
                 e.printStackTrace();
                 return;

@@ -1,3 +1,5 @@
+import com.ads.CommandType;
+import com.ads.Command;
 import com.ads.DataManager;
 import com.ads.TransactionManager;
 import com.ads.interfaces.IDataManager;
@@ -20,36 +22,36 @@ public class SimpleTest {
         TransactionManager tm = new TransactionManager(dataManagers);
 
         System.out.println("Test 1: Basic Read/Write");
-        tm.begin("T1");
-        tm.read("T1", "x2");  // Should read 20
-        tm.write("T1", "x1", 100);
-        tm.read("T1", "x1");  // Should read 100 (own write)
-        tm.end("T1");
+        tm.execute(new Command(CommandType.BEGIN, new String[]{"T1"}));
+        tm.execute(new Command(CommandType.READ, new String[]{"T1", "x2"}));  // Should read 20
+        tm.execute(new Command(CommandType.WRITE, new String[]{"T1", "x1", "100"}));
+        tm.execute(new Command(CommandType.READ, new String[]{"T1", "x1"}));  // Should read 100 (own write)
+        tm.execute(new Command(CommandType.END, new String[]{"T1"}));
         System.out.println();
 
         System.out.println("Test 2: First-Committer-Wins (from spec Test 1)");
-        tm.begin("T1");
-        tm.begin("T2");
-        tm.write("T1", "x1", 101);
-        tm.write("T2", "x2", 202);
-        tm.write("T1", "x2", 102);
-        tm.write("T2", "x1", 201);
-        tm.end("T2");  // T2 commits first
-        tm.end("T1");  // T1 should abort
+        tm.execute(new Command(CommandType.BEGIN, new String[]{"T1"}));
+        tm.execute(new Command(CommandType.BEGIN, new String[]{"T2"}));
+        tm.execute(new Command(CommandType.WRITE, new String[]{"T1", "x1", "101"}));
+        tm.execute(new Command(CommandType.WRITE, new String[]{"T2", "x2", "202"}));
+        tm.execute(new Command(CommandType.WRITE, new String[]{"T1", "x2", "102"}));
+        tm.execute(new Command(CommandType.WRITE, new String[]{"T2", "x1", "201"}));
+        tm.execute(new Command(CommandType.END, new String[]{"T2"}));  // T2 commits first
+        tm.execute(new Command(CommandType.END, new String[]{"T1"}));  // T1 should abort
         System.out.println();
 
         System.out.println("Test 3: Snapshot Isolation (from spec Test 2)");
-        tm.begin("T3");
-        tm.begin("T4");
-        tm.write("T3", "x1", 101);
-        tm.read("T4", "x2");  // Should read initial value
-        tm.write("T3", "x2", 102);
-        tm.read("T4", "x1");  // Should read initial value
-        tm.end("T3");
-        tm.end("T4");
+        tm.execute(new Command(CommandType.BEGIN, new String[]{"T3"}));
+        tm.execute(new Command(CommandType.BEGIN, new String[]{"T4"}));
+        tm.execute(new Command(CommandType.WRITE, new String[]{"T3", "x1", "101"}));
+        tm.execute(new Command(CommandType.READ, new String[]{"T4", "x2"}));  // Should read initial value
+        tm.execute(new Command(CommandType.WRITE, new String[]{"T3", "x2", "102"}));
+        tm.execute(new Command(CommandType.READ, new String[]{"T4", "x1"}));  // Should read initial value
+        tm.execute(new Command(CommandType.END, new String[]{"T3"}));
+        tm.execute(new Command(CommandType.END, new String[]{"T4"}));
         System.out.println();
 
         System.out.println("Test 4: Dump");
-        tm.dump();
+        tm.execute(new Command(CommandType.DUMP, new String[]{}));
     }
 }

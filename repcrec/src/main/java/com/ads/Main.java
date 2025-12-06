@@ -1,6 +1,7 @@
 package com.ads;
 
 import com.ads.interfaces.IDataManager;
+import com.ads.interfaces.ITransactionManager;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -12,7 +13,7 @@ import java.util.Scanner;
  * @version 1.0 (Created: 2025-12-01)
  */
 public class Main {
-    private final TransactionManager tm;
+    private final ITransactionManager tm;
     private final CommandParser parser;
     private final Scanner scanner;
 
@@ -65,7 +66,7 @@ public class Main {
             try {
                 Command command = parser.parse(line);
                 if (command != null) {
-                    executeCommand(command);
+                    tm.execute(command);
                 }
             } catch (IllegalArgumentException e) {
                 System.out.println("Invalid command: " + e.getMessage());
@@ -73,23 +74,6 @@ public class Main {
             } catch (Exception e) {
                 System.out.println("Error: " + e.getMessage());
             }
-        }
-    }
-
-    private void executeCommand(Command command) {
-        try {
-            switch (command.getType()) {
-                case BEGIN -> tm.begin(command.getArgs()[0]);
-                case READ -> tm.read(command.getArgs()[0], command.getArgs()[1]);
-                case WRITE -> tm.write(command.getArgs()[0], command.getArgs()[1],
-                                      Integer.parseInt(command.getArgs()[2]));
-                case END -> tm.end(command.getArgs()[0]);
-                case FAIL -> tm.fail(Integer.parseInt(command.getArgs()[0]));
-                case RECOVER -> tm.recover(Integer.parseInt(command.getArgs()[0]));
-                case DUMP -> tm.dump();
-            }
-        } catch (Exception e) {
-            System.out.println("Execution error: " + e.getMessage());
         }
     }
 

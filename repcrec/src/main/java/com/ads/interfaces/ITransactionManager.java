@@ -1,17 +1,13 @@
 package com.ads.interfaces;
 
+import com.ads.Command;
+
 /**
  * Interface for transaction management operations.
- * @author Vincent Xu
- * @version 1.0 (Created: 2025-11-25, Last Modified: 2025-11-26)
+ * @author Vincent Xu, Tejas Choudhary
+ * @version 1.0 (Created: 2025-11-25, Last Modified: 2025-12-04)
  */
 
 public interface ITransactionManager {
-    void begin(String txnId);
-    void read(String txnId, String varId);
-    void write(String txnId, String varId, int value);
-    void end(String txnId);
-    void dump();
-    void fail(int siteId);
-    void recover(int siteId);
+    void execute(Command command);
 }
