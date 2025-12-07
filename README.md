@@ -62,6 +62,29 @@ mvn test -Dtest=RunSampleTests
 - Integration test inputs: `repcrec/in/*.in`
 - Expected outputs: `repcrec/out/*.out`
 
+## Documentation
+
+**Javadoc API Documentation:**
+
+The project includes comprehensive Javadoc documentation for all classes and interfaces.
+
+To generate the Javadoc:
+```bash
+cd repcrec
+mvn javadoc:javadoc
+```
+
+To view the documentation:
+1. Open `javadoc/index.html` in your web browser
+2. Or navigate to `javadoc/com/ads/package-summary.html` for the main package overview
+
+The Javadoc covers all core components including:
+- Transaction management (`TransactionManager`, `TxRecord`)
+- Data management (`DataManager`, `Variable`, `VersionedValue`)
+- Serialization graph cycle detection (`SerializationGraph`)
+- Site management (`SiteDirectory`, `SiteStatus`)
+- Command parsing and execution (`Command`, `CommandParser`)
+
 ## Project Layout
 
 ```
