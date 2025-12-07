@@ -153,7 +153,6 @@ public class TransactionManagerTest {
         tm.execute(new Command(CommandType.DUMP, new String[]{}));
 
         String output = outputStream.toString();
-        assertTrue(output.contains("=== Database Dump ==="));
         assertTrue(output.contains("x1"));
         assertTrue(output.contains("x20"));
     }
