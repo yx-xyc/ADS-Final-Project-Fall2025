@@ -28,7 +28,8 @@ bin/
 .vscode/
 repcrec/target/
 repcrec/out/
-repcrec/in/
 repcrec/run-tests.sh
 
 CLAUDE.md
+.DS_Store
+reprozip_submission

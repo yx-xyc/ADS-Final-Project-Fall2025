@@ -71,7 +71,8 @@ public class DataManager implements IDataManager {
     public VersionedValue read(String transactionId, String variableId, int startTime)
             throws StaleReadException, SiteDownException, DataManagerException {
 
-        if (!isUp) {
+        // Allow DUMP to read last committed state even when site is down
+        if (!isUp && !transactionId.equals("DUMP")) {
             throw new SiteDownException("Site " + siteId + " is down.");
         }
 

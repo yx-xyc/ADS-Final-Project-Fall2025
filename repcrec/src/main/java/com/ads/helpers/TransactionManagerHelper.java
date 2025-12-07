@@ -173,75 +173,57 @@ public class TransactionManagerHelper {
 
     /**
      * Dump the current state of all variables across all sites.
+     * Format: site N - x1: val1, x2: val2, ..., x20: val20
+     * One line per site, sorted by variable name in ascending order.
+     * Includes sites that are down (marked with special indicator).
      * @param dataManagers Map of DataManagers
      * @param siteDirectory SiteDirectory instance
      * @param staleVariables Map of stale variables per site
      */
-    public static void dump(Map<Integer, IDataManager> dataManagers, SiteDirectory siteDirectory, 
+    public static void dump(Map<Integer, IDataManager> dataManagers, SiteDirectory siteDirectory,
                           Map<Integer, Set<String>> staleVariables) {
-        System.out.println("=== Database Dump ===");
-        System.out.println();
+        // Print state for each site (1-10)
+        for (int siteId = 1; siteId <= NUM_SITES; siteId++) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("site ").append(siteId);
 
-        // Print non-replicated variables (odd indices)
-        System.out.println("Non-Replicated Variables:");
-        for (int varId = 1; varId <= 20; varId += 2) {
-            String varName = "x" + varId;
-            Set<Integer> validSites = getSitesForVariable(varName);
+            boolean isUp = siteDirectory.isUp(siteId);
+            if (!isUp) {
+                sb.append(" (down)");
+            }
+            sb.append(" -");
 
-            for (int siteId : validSites) {
-                if (!siteDirectory.isUp(siteId)) continue;
+            boolean hasValues = false;
 
+            // Iterate through all variables in ascending order (x1, x2, ..., x20)
+            for (int varId = 1; varId <= 20; varId++) {
+                String varName = "x" + varId;
+                Set<Integer> validSites = getSitesForVariable(varName);
+
+                // Check if this variable should be on this site
+                if (!validSites.contains(siteId)) {
+                    continue; // Variable not on this site
+                }
+
+                // Try to read the value (works for both up and down sites via DUMP)
                 try {
                     IDataManager dm = dataManagers.get(siteId);
-                    if (dm == null) continue;
+                    if (dm != null) {
+                        VersionedValue versionedValue = dm.read("DUMP", varName, Integer.MAX_VALUE);
+                        int value = versionedValue.getValue();
 
-                    VersionedValue versionedValue = dm.read("DUMP", varName, Integer.MAX_VALUE);
-                    int value = versionedValue.getValue();
-                    System.out.printf("  %-4s site%-2d: %d%n", varName, siteId, value);
-                } catch (Exception e) {
-                    // Variable not available or site error
-                }
-            }
-        }
-
-        System.out.println();
-        System.out.println("Replicated Variables:");
-        System.out.println("  Var  | Site1 | Site2 | Site3 | Site4 | Site5 | Site6 | Site7 | Site8 | Site9 | Site10");
-        System.out.println("  -----|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------");
-
-        // Print replicated variables (even indices) in table format
-        for (int varId = 2; varId <= 20; varId += 2) {
-            String varName = "x" + varId;
-            System.out.printf("  %-4s |", varName);
-
-            Set<Integer> validSites = getSitesForVariable(varName);
-
-            for (int siteId = 1; siteId <= NUM_SITES; siteId++) {
-                String cellContent = "  -  ";  // Default: site down or no data
-
-                if (validSites.contains(siteId) && siteDirectory.isUp(siteId)) {
-                    try {
-                        IDataManager dm = dataManagers.get(siteId);
-                        if (dm != null) {
-                            VersionedValue versionedValue = dm.read("DUMP", varName, Integer.MAX_VALUE);
-                            int value = versionedValue.getValue();
-                            Set<String> staleVars = staleVariables.get(siteId);
-                            boolean stale = staleVars != null && staleVars.contains(varName);
-                            cellContent = stale ? String.format("%3d*", value) : String.format(" %3d ", value);
+                        if (hasValues) {
+                            sb.append(",");
                         }
-                    } catch (Exception e) {
-                        // Variable not available or site error
+                        sb.append(" ").append(varName).append(": ").append(value);
+                        hasValues = true;
                     }
+                } catch (Exception e) {
+                    // Variable not available or site error - skip this variable
                 }
-
-                System.out.printf(" %5s |", cellContent);
             }
-            System.out.println();
-        }
 
-        System.out.println();
-        System.out.println("  Note: * indicates stale (unreadable until new write committed)");
-        System.out.println("        - indicates site down or no data");
-        System.out.println("====================");
+            System.out.println(sb.toString());
+        }
     }
 }
