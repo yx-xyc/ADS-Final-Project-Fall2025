@@ -19,7 +19,7 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
 mvn compile
 
 # Run simulator with input file
-java -cp target/classes com.ads.Simulator -f in/1.in
+java -cp target/classes com.ads.Main < in/1.in
 
 # Run interactive console
 java -cp target/classes com.ads.Main
