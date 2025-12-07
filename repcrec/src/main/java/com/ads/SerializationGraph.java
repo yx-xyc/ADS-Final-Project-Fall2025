@@ -13,9 +13,9 @@ import java.util.*;
 public class SerializationGraph {
     /**
      * Types of edges in the serialization graph:
-     * - WW: Write-Write dependency (T1 writes x, T2 writes x, commit(T1) < start(T2))
-     * - WR: Write-Read dependency (T1 writes x, T2 reads x, commit(T1) < start(T2))
-     * - RW: Read-Write anti-dependency (T1 reads x, T2 writes x, start(T1) < commit(T2))
+     * - WW: Write-Write dependency (T1 writes x, T2 writes x, commit(T1) &lt; start(T2))
+     * - WR: Write-Read dependency (T1 writes x, T2 reads x, commit(T1) &lt; start(T2))
+     * - RW: Read-Write anti-dependency (T1 reads x, T2 writes x, start(T1) &lt; commit(T2))
      */
     public enum EdgeType {
         WW,  // Write-Write
