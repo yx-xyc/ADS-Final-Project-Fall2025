@@ -46,6 +46,7 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
 mvn compile
 
 # Run simulator with input file
+cd repcrec
 java -cp target/classes com.ads.Main < in/1.in
 
 # Run interactive console
@@ -75,12 +76,6 @@ mvn test -Dtest=RunSampleTests
 **Javadoc API Documentation:**
 
 The project includes comprehensive Javadoc documentation for all classes and interfaces.
-
-To generate the Javadoc:
-```bash
-cd repcrec
-mvn javadoc:javadoc
-```
 
 To view the documentation:
 1. Open `javadoc/index.html` in your web browser
