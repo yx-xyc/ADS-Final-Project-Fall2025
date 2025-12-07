@@ -19,7 +19,6 @@ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
 mvn compile
 
 # Run simulator with input file
-cd repcrec
 java -cp target/classes com.ads.Main < in/1.in
 
 # Run interactive console
@@ -49,6 +48,12 @@ mvn test -Dtest=RunSampleTests
 **Javadoc API Documentation:**
 
 The project includes comprehensive Javadoc documentation for all classes and interfaces.
+
+To generate the Javadoc:
+```bash
+cd repcrec
+mvn javadoc:javadoc
+```
 
 To view the documentation:
 1. Open `javadoc/index.html` in your web browser
@@ -125,20 +130,21 @@ The package supports running with any test file from `repcrec/in/`:
 reprounzip directory setup repcrec.rpz repcrec_test
 
 # Run with specific test file (replace XX with test number 1-27)
+# assume repcrec is put under /home directory
 reprounzip directory run repcrec_test --cmdline \
   /usr/lib/jvm/java-17-openjdk/bin/java \
-  -cp /home/yx2021/Courses/ADS/ADS-Final-Project-Fall2025/repcrec/target/classes \
+  -cp /home/repcrec/target/classes \
   com.ads.Main \
-  /home/yx2021/Courses/ADS/ADS-Final-Project-Fall2025/repcrec/in/XX.in
+  /home/repcrec/in/XX.in
 ```
 
 **Example - Running test 10:**
 ```bash
 reprounzip directory run repcrec_test --cmdline \
   /usr/lib/jvm/java-17-openjdk/bin/java \
-  -cp /home/yx2021/Courses/ADS/ADS-Final-Project-Fall2025/repcrec/target/classes \
+  -cp /home/repcrec/target/classes \
   com.ads.Main \
-  /home/yx2021/Courses/ADS/ADS-Final-Project-Fall2025/repcrec/in/10.in
+  /home/repcrec/in/10.in
 ```
 
 **Expected Output:**
@@ -163,9 +169,9 @@ cd reprozip_submission
 
 # Trace execution with absolute classpath
 reprozip trace -d trace_run \
-  java -cp /home/yx2021/Courses/ADS/ADS-Final-Project-Fall2025/repcrec/target/classes \
+  java -cp /home/repcrec/target/classes \
   com.ads.Main \
-  /home/yx2021/Courses/ADS/ADS-Final-Project-Fall2025/repcrec/in/1.in
+  /home/repcrec/in/1.in
 
 # Manually edit trace_run/config.yml to ensure all .class files are included
 # (Add SerializationGraph$EdgeType.class and SiteStatus.class if missing)
