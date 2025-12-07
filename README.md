@@ -1,31 +1,5 @@
 # Replicated Concurrency Control & Recovery (repcrec)
 
-<<<<<<< HEAD
-Lightweight Maven-based Java implementation of Serializable Snapshot Isolation (SSI) with the Available Copies replication algorithm.
-
-## Key Components
-
-**Core Classes:**
-- Main application starter: [`com.ads.Main`](repcrec/src/main/java/com/ads/Main.java)
-- Simulator/driver: [`com.ads.Simulator`](repcrec/src/main/java/com/ads/Simulator.java)
-- Transaction manager: [`com.ads.TransactionManager`](repcrec/src/main/java/com/ads/TransactionManager.java)
-- Transaction manager helper: [`com.ads.helpers.TransactionManagerHelper`](repcrec/src/main/java/com/ads/helpers/TransactionManagerHelper.java)
-- Data manager: [`com.ads.DataManager`](repcrec/src/main/java/com/ads/DataManager.java)
-- Variable model: [`com.ads.Variable`](repcrec/src/main/java/com/ads/Variable.java)
-
-**Interfaces:**
-- Transaction manager interface: [`com.ads.interfaces.ITransactionManager`](repcrec/src/main/java/com/ads/interfaces/ITransactionManager.java)
-- Data manager interface: [`com.ads.interfaces.IDataManager`](repcrec/src/main/java/com/ads/interfaces/IDataManager.java)
-
-**Supporting Classes:**
-- Site directory: [`com.ads.SiteDirectory`](repcrec/src/main/java/com/ads/SiteDirectory.java)
-- Transaction record: [`com.ads.TxRecord`](repcrec/src/main/java/com/ads/TxRecord.java)
-- Serialization graph: [`com.ads.SerializationGraph`](repcrec/src/main/java/com/ads/SerializationGraph.java)
-- Command parser: [`com.ads.CommandParser`](repcrec/src/main/java/com/ads/CommandParser.java)
-
-**Configuration:**
-- Maven project file: [repcrec/pom.xml](repcrec/pom.xml)
-=======
 **Authors:** Vincent Xu, Tejas Choudhary
 **Course:** CSCI-GA.2434 Advanced Database Systems, Fall 2025
 **Institution:** New York University
@@ -33,7 +7,6 @@ Lightweight Maven-based Java implementation of Serializable Snapshot Isolation (
 Maven-based Java implementation of Serializable Snapshot Isolation (SSI) with the Available Copies replication algorithm.
 
 **For detailed architecture and design information, please refer to [Design Doc.pdf](Design%20Doc.pdf)**
->>>>>>> origin/main
 
 ## Build & Run
 
