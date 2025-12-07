@@ -161,7 +161,12 @@ public class TransactionManager implements ITransactionManager {
             tx.addSiteAccess(siteId);
         }
 
-        System.out.println("Transaction " + txnId + " writes " + value + " to " + varId);
+        // Print affected sites
+        System.out.print("Transaction " + txnId + " writes " + value + " to " + varId + " at sites:");
+        for (int siteId : availableSites) {
+            System.out.print(" " + siteId);
+        }
+        System.out.println();
     }
 
     /**
@@ -421,7 +426,12 @@ public class TransactionManager implements ITransactionManager {
                     }
 
                     Integer value = tx.getWriteSet().get(op.varId);
-                    System.out.println("Transaction " + tx.getTxnId() + " writes " + value + " to " + op.varId);
+                    // Print affected sites
+                    System.out.print("Transaction " + tx.getTxnId() + " writes " + value + " to " + op.varId + " at sites:");
+                    for (int siteId : availableSites) {
+                        System.out.print(" " + siteId);
+                    }
+                    System.out.println();
                     iter.remove();
                 } else {
                     // Still no sites available, keep waiting
