@@ -1,0 +1,30 @@
+// Test 5: Available Copies with Multiple Site Failures
+// Tests that reads can only happen from sites that were continuously up
+// since the version was committed
+
+begin(T1)
+begin(T2)
+fail(3)
+fail(4)
+R(T1,x1)
+W(T2,x8,88)
+end(T1)
+recover(4)
+recover(3)
+R(T2,x3)
+end(T2)
+fail(1)
+fail(2)
+fail(5)
+fail(6)
+fail(7)
+fail(8)
+fail(9)
+fail(10)
+begin(T3)
+R(T3,x8)
+
+// Expected: T1 commits (reads x1=10 from site 2)
+// Expected: T2 commits (writes x8=88, reads x3=30 from site 4 after recovery)
+// Expected: T3 will abort - no site has been continuously up from when x8=88
+//           was committed through when T3 began, so x8 cannot be read

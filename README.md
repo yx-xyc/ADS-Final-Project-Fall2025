@@ -1,29 +1,12 @@
 # Replicated Concurrency Control & Recovery (repcrec)
 
-Lightweight Maven-based Java implementation of Serializable Snapshot Isolation (SSI) with the Available Copies replication algorithm.
+**Authors:** Vincent Xu, Tejas Choudhary
+**Course:** CSCI-GA.2434 Advanced Database Systems, Fall 2025
+**Institution:** New York University
 
-## Key Components
+Maven-based Java implementation of Serializable Snapshot Isolation (SSI) with the Available Copies replication algorithm.
 
-**Core Classes:**
-- Main application starter: [`com.ads.Main`](repcrec/src/main/java/com/ads/Main.java)
-- Simulator/driver: [`com.ads.Simulator`](repcrec/src/main/java/com/ads/Simulator.java)
-- Transaction manager: [`com.ads.TransactionManager`](repcrec/src/main/java/com/ads/TransactionManager.java)
-- Transaction manager helper: [`com.ads.helpers.TransactionManagerHelper`](repcrec/src/main/java/com/ads/helpers/TransactionManagerHelper.java)
-- Data manager: [`com.ads.DataManager`](repcrec/src/main/java/com/ads/DataManager.java)
-- Variable model: [`com.ads.Variable`](repcrec/src/main/java/com/ads/Variable.java)
-
-**Interfaces:**
-- Transaction manager interface: [`com.ads.interfaces.ITransactionManager`](repcrec/src/main/java/com/ads/interfaces/ITransactionManager.java)
-- Data manager interface: [`com.ads.interfaces.IDataManager`](repcrec/src/main/java/com/ads/interfaces/IDataManager.java)
-
-**Supporting Classes:**
-- Site directory: [`com.ads.SiteDirectory`](repcrec/src/main/java/com/ads/SiteDirectory.java)
-- Transaction record: [`com.ads.TxRecord`](repcrec/src/main/java/com/ads/TxRecord.java)
-- Serialization graph: [`com.ads.SerializationGraph`](repcrec/src/main/java/com/ads/SerializationGraph.java)
-- Command parser: [`com.ads.CommandParser`](repcrec/src/main/java/com/ads/CommandParser.java)
-
-**Configuration:**
-- Maven project file: [repcrec/pom.xml](repcrec/pom.xml)
+**For detailed architecture and design information, please refer to [Design Doc.pdf](Design%20Doc.pdf)**
 
 ## Build & Run
 
@@ -59,8 +42,6 @@ mvn test -Dtest=RunSampleTests
   - `RunSampleTests.java` - Comprehensive test suite (46 tests)
   - `TransactionManagerTest.java` - Transaction manager tests
   - `SimpleTest.java` - Basic functionality tests
-- Integration test inputs: `repcrec/in/*.in`
-- Expected outputs: `repcrec/out/*.out`
 
 ## Documentation
 
@@ -85,49 +66,25 @@ The Javadoc covers all core components including:
 - Site management (`SiteDirectory`, `SiteStatus`)
 - Command parsing and execution (`Command`, `CommandParser`)
 
-## Project Layout
+## Project Structure
 
 ```
-repcrec/
-├── pom.xml                          # Maven configuration
-├── src/
-│   ├── main/java/com/ads/
-│   │   ├── Main.java                # Interactive console entry point
-│   │   ├── Simulator.java           # File-based simulator driver
-│   │   ├── TransactionManager.java  # Transaction coordination
-│   │   ├── DataManager.java         # Site-level data management
-│   │   ├── Variable.java            # Multiversion variable storage
-│   │   ├── TxRecord.java            # Transaction metadata
-│   │   ├── SiteDirectory.java       # Site status tracking
-│   │   ├── SerializationGraph.java  # SSI cycle detection
-│   │   ├── CommandParser.java       # Command parsing
-│   │   ├── helpers/
-│   │   │   └── TransactionManagerHelper.java  # Utility methods
-│   │   └── interfaces/
-│   │       ├── ITransactionManager.java       # TM interface
-│   │       └── IDataManager.java              # DM interface
-│   └── test/java/
-│       ├── RunSampleTests.java      # Comprehensive test suite (46 tests)
-│       ├── TransactionManagerTest.java
-│       └── SimpleTest.java
-├── in/                              # Test input files (*.in)
-└── out/                             # Expected output files (*.out)
+ADS-Final-Project-Fall2025/
+├── Design Doc.pdf               # Detailed architecture and design document
+├── README.md                    # This file
+├── javadoc/                     # Generated API documentation
+└── repcrec/                     # Main project directory
+    ├── pom.xml                  # Maven configuration
+    └── src/
+        ├── main/java/com/ads/   # Source code
+        └── test/java/           # Unit tests
 ```
 
-## Architecture
+For detailed component descriptions and architecture information, see **Design Doc.pdf**.
 
-**Command Flow:**
-1. `Simulator` reads commands from stdin/file
-2. `CommandParser` parses text into `Command` objects
-3. `Simulator` calls `TransactionManager.execute(command)`
-4. `TransactionManager` coordinates with 10 `DataManager` instances
-5. `TransactionManagerHelper` provides utility functions
+## Submission Package
 
-**Key Design Patterns:**
-- **Multiversion Concurrency Control (MVCC)**: Variables maintain commit logs
-- **Snapshot Isolation**: Transactions read from their start-time snapshot
-- **Serializable Snapshot Isolation (SSI)**: Cycle detection with FLOOS theorem
-- **Available Copies**: Replication with site failure handling
+This project includes reprozip packaging for reproducibility across different architectures. See the reprozip package for the complete executable environment.
 
 ## License
 
